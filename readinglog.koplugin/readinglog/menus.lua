@@ -26,6 +26,7 @@ local H = A.host
 
 local floor, max, min = math.floor, math.max, math.min
 local tr = S.tr
+local T = A._
 
 local ELLIPSIS = "\xE2\x80\xA6"
 
@@ -390,7 +391,7 @@ end
 
 local function accentOptions(with_matched)
     local out = {}
-    if with_matched then out[1] = { "matched", "Matched to the first" } end
+    if with_matched then out[1] = { "matched", T("Matched to the first") } end
     for _, id in ipairs(A.ACCENT_ORDER) do out[#out + 1] = { id, A.ACCENTS[id].label } end
     return out
 end
@@ -399,31 +400,31 @@ end
 function S.lookMenu(mctx)
     local function after() S.reloadAll(mctx) end
     return {
-        text = "Look and colours",
+        text = T("Look and colours"),
         sub_item_table_func = function()
             local themes = {}
             for _, id in ipairs(A.THEME_ORDER) do themes[#themes + 1] = { id, A.THEMES[id].label } end
             return {
-                radioItem("Theme", function() return themes end, A.themeId,
+                radioItem(T("Theme"), function() return themes end, A.themeId,
                     function(v) A.set("theme", v) end, after),
-                radioItem("Accent colour", function() return accentOptions(false) end,
+                radioItem(T("Accent colour"), function() return accentOptions(false) end,
                     function() return (A.accentIds()) end,
                     function(v) A.set("accent", v) end, after),
-                radioItem("Second accent", function() return accentOptions(true) end,
+                radioItem(T("Second accent"), function() return accentOptions(true) end,
                     function()
                         local v = A.get("accent2", nil)
                         return A.ACCENTS[v] and v or "matched"
                     end,
                     function(v) A.set("accent2", v ~= "matched" and v or nil) end, after),
-                radioItem("Cards on their own",
-                    function() return { { "native", "Match Simple UI" }, { "framed", "Framed, in the theme" } } end,
+                radioItem(T("Cards on their own"),
+                    function() return { { "native", T("Match Simple UI") }, { "framed", T("Framed, in the theme") } } end,
                     function() return A.standaloneNative() and "native" or "framed" end,
                     function(v) A.set("standalone", v ~= "native" and v or nil) end, after),
-                radioItem("Week starts on",
-                    function() return { { 0, "Follow KOReader" }, { 2, "Monday" }, { 1, "Sunday" } } end,
+                radioItem(T("Week starts on"),
+                    function() return { { 0, T("Follow KOReader") }, { 2, T("Monday") }, { 1, T("Sunday") } } end,
                     function() return tonumber(A.get("week_start", 0)) or 0 end,
                     function(v) A.set("week_start", v ~= 0 and v or nil) end, after),
-                { text = "Diagnostics" .. ELLIPSIS, keep_menu_open = true,
+                { text = T("Diagnostics") .. ELLIPSIS, keep_menu_open = true,
                   callback = function() S.diagnostics(mctx) end },
             }
         end,
@@ -431,43 +432,48 @@ function S.lookMenu(mctx)
 end
 
 local function tapItem(name, after)
-    return radioItem("When tapped",
+    return radioItem(T("When tapped"),
         function() return S.tapOptions(name) end,
         function() return S.tapValue(name) end,
         function(v)
             local label
             for _, o in ipairs(S.tapOptions(name)) do
-                if o[1] == v then label = (o[2]:gsub("^Quick action: ", "")) end
+                if o[1] == v then label = o[3] or o[2] end
             end
             S.setTapValue(name, v, label)
         end,
         after,
-        function(label) return (label:gsub("^Quick action: ", ""):gsub("^The card's own: .*", "The card's own")) end)
+        function(label)
+            for _, o in ipairs(S.tapOptions(name)) do
+                if o[2] == label then return o[1] == "own" and T("The card's own") or (o[3] or o[2]) end
+            end
+            return label
+        end)
 end
 
 local function colourItem(name, env_fn, after)
-    return radioItem("Card colour", toneOptions,
+    return radioItem(T("Card colour"), toneOptions,
         function() return env_fn().tone.name end,
         function(v) A.set(name .. "_tone", v) end, after)
 end
 
 local function heightItem(mctx, after)
     local key = A.screenKey(mctx.pfx, mctx.mod_id, "height")
-    return numberItem("Card height",
+    return numberItem(T("Card height"),
         function() return A.cardHeightPct(mctx.pfx, mctx.mod_id) end,
         function(v) A.set(key, v ~= A.HEIGHT_DEF and v or nil) end,
         { min = A.HEIGHT_MIN, max = A.HEIGHT_MAX, step = 5, unit = "%", default = A.HEIGHT_DEF,
-          description = "Height of this card, against the shape it was designed at.\n100% is the default." },
+          description = T("Height of this card, against the shape it was designed at.") .. "\n" .. T("100% is the default.") },
         after)
 end
 
 local function textItem(mctx, after, what)
     local key = A.screenKey(mctx.pfx, mctx.mod_id, "text")
-    return numberItem("Text size",
+    return numberItem(T("Text size"),
         function() return A.textSizePct(mctx.pfx, mctx.mod_id) end,
         function(v) A.set(key, v ~= A.TEXT_DEF and v or nil) end,
         { min = A.TEXT_MIN, max = A.TEXT_MAX, step = 5, unit = "%", default = A.TEXT_DEF,
-          description = "Size of the text on " .. what .. ". Small text grows fully, big figures and titles by half.\n100% is the default." },
+          description = A.tr("Size of the text on %1. Small text grows fully, big figures and titles by half.", what) .. "\n" .. T("100% is the default.") },
         after)
 end
 
@@ -504,8 +510,8 @@ function S.cardMenu(name, mctx, ctx_menu, o)
         return ok and rows or {}
     end, after)
     if def.slots and not o.nested then
-        table.insert(content, 1, radioItem("This card shows",
-            function() return { { 1, "Set 1" }, { 2, "Set 2" }, { 3, "Set 3" } } end,
+        table.insert(content, 1, radioItem(T("This card shows"),
+            function() return { { 1, T("Set 1") }, { 2, T("Set 2") }, { 3, T("Set 3") } } end,
             function()
                 local ok, v = pcall(mctx.config.get, mctx.config, "alm_slot", 1)
                 return ok and tonumber(v) or 1
@@ -515,7 +521,7 @@ function S.cardMenu(name, mctx, ctx_menu, o)
     local spec = {
         content = (#content > 0) and content or nil,
         appearance = {
-            size = (not o.nested) and { heightItem(mctx, after), textItem(mctx, after, "this card") } or nil,
+            size = (not o.nested) and { heightItem(mctx, after), textItem(mctx, after, T("this card")) } or nil,
             extra = { colourItem(name, env_fn, after), S.lookMenu(mctx) },
         },
         behaviour = { tapItem(name, after) },
@@ -529,17 +535,17 @@ function S.dashboardMenu(mctx, ctx_menu)
     local function after() S.reload(mctx) end
     local key_h = A.screenKey(mctx.pfx, mctx.mod_id, "dash_height")
     local content = {
-        { text = "Pages and cards" .. ELLIPSIS, keep_menu_open = true,
+        { text = T("Pages and cards") .. ELLIPSIS, keep_menu_open = true,
           callback = function() A.dashEditPages(mctx, nil) end },
-        radioItem("Margin around the page",
-            function() return { { "none", "None" }, { "small", "Small" }, { "medium", "Medium" } } end,
+        radioItem(T("Margin around the page"),
+            function() return { { "none", T("None") }, { "small", T("Small") }, { "medium", T("Medium") } } end,
             function()
                 local v = A.get("dash_margin", "small")
                 return A.DASH_MARGINS[v] and v or "small"
             end,
             function(v) A.set("dash_margin", v ~= "small" and v or nil) end, after),
         {
-            text = "Card settings",
+            text = T("Card settings"),
             sub_item_table_func = function()
                 local items, seen = {}, {}
                 for _, page in ipairs(A.dashPages()) do
@@ -560,14 +566,14 @@ function S.dashboardMenu(mctx, ctx_menu)
                 return items
             end,
         },
-        { text = "Put the whole Dashboard back as it came" .. ELLIPSIS, keep_menu_open = true,
+        { text = T("Put the whole Dashboard back as it came") .. ELLIPSIS, keep_menu_open = true,
           callback = function()
               local UIManager = require("ui/uimanager")
               local ConfirmBox = require("ui/widget/confirmbox")
               UIManager:show(ConfirmBox:new{
-                  text = "Put every page, tab and row of the Dashboard back as it came?\n\n"
-                      .. "Pages you added are removed. Each card's own settings and the colours are kept.",
-                  ok_text = "Put back",
+                  text = T("Put every page, tab and row of the Dashboard back as it came?") .. "\n\n"
+                      .. T("Pages you added are removed. Each card's own settings and the colours are kept."),
+                  ok_text = T("Put back"),
                   ok_callback = function()
                       A.resetDashboard()
                       after()
@@ -575,15 +581,15 @@ function S.dashboardMenu(mctx, ctx_menu)
               })
           end },
     }
-    local heights = { { "fill", "Fill the page" } }
-    for _, pct in ipairs({ 90, 80, 70, 60, 50 }) do heights[#heights + 1] = { pct, pct .. "% of the screen" } end
+    local heights = { { "fill", T("Fill the page") } }
+    for _, pct in ipairs({ 90, 80, 70, 60, 50 }) do heights[#heights + 1] = { pct, A.tr("%1% of the screen", pct) } end
     local spec = {
         content = content,
         appearance = {
-            size = { radioItem("Height", function() return heights end,
+            size = { radioItem(T("Height"), function() return heights end,
                 function() return A.dashHeightMode(mctx.pfx, mctx.mod_id) end,
                 function(v) A.set(key_h, v ~= "fill" and v or nil) end, after),
-                textItem(mctx, after, "all the Dashboard's cards") },
+                textItem(mctx, after, T("all the Dashboard's cards")) },
             extra = { S.lookMenu(mctx) },
         },
     }

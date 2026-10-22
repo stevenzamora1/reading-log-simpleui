@@ -24,10 +24,15 @@ Why modules paint their own card: each card has its own colour, so it fills
 its box with a rounded panel and draws on that.
 ]]
 
-local A = { VERSION = "1.1.0", NAME = "Reading Log" }
+local A = { VERSION = "1.2.0", NAME = "Reading Log" }
 A.HOST = "Simple UI"
 
 A.dir = (debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")) or "."
+
+A.i18n = dofile(A.dir .. "/i18n.lua")
+local T = A.i18n.gettext
+A._ = T
+A.tr = A.i18n.format
 
 local floor, ceil, max, min, sqrt = math.floor, math.ceil, math.max, math.min, math.sqrt
 
@@ -106,31 +111,31 @@ A.epoch = 0
 -- that is used when no second accent has been chosen.
 
 A.ACCENTS = {
-    red     = { label = "Red",     deep = { 204, 34, 51 },  bright = { 255, 102, 102 }, pair = "blue" },
-    orange  = { label = "Orange",  deep = { 221, 102, 0 },  bright = { 255, 170, 51 },  pair = "teal" },
-    gold    = { label = "Gold",    deep = { 170, 119, 0 },  bright = { 255, 204, 51 },  pair = "red" },
-    lime    = { label = "Lime",    deep = { 102, 153, 0 },  bright = { 187, 238, 68 },  pair = "purple" },
-    green   = { label = "Green",   deep = { 17, 136, 68 },  bright = { 102, 221, 119 }, pair = "orange" },
-    teal    = { label = "Teal",    deep = { 0, 136, 136 },  bright = { 85, 221, 221 },  pair = "orange" },
-    sky     = { label = "Sky",     deep = { 0, 136, 204 },  bright = { 102, 204, 255 }, pair = "pink" },
-    blue    = { label = "Blue",    deep = { 34, 102, 204 }, bright = { 102, 170, 255 }, pair = "red" },
-    purple  = { label = "Purple",  deep = { 119, 68, 187 }, bright = { 187, 153, 255 }, pair = "gold" },
-    magenta = { label = "Magenta", deep = { 187, 34, 153 }, bright = { 255, 119, 221 }, pair = "teal" },
-    pink    = { label = "Pink",    deep = { 204, 51, 119 }, bright = { 255, 136, 187 }, pair = "sky" },
-    brown   = { label = "Brown",   deep = { 136, 85, 34 },  bright = { 221, 170, 119 }, pair = "teal" },
+    red     = { label = T("Red"),     deep = { 204, 34, 51 },  bright = { 255, 102, 102 }, pair = "blue" },
+    orange  = { label = T("Orange"),  deep = { 221, 102, 0 },  bright = { 255, 170, 51 },  pair = "teal" },
+    gold    = { label = T("Gold"),    deep = { 170, 119, 0 },  bright = { 255, 204, 51 },  pair = "red" },
+    lime    = { label = T("Lime"),    deep = { 102, 153, 0 },  bright = { 187, 238, 68 },  pair = "purple" },
+    green   = { label = T("Green"),   deep = { 17, 136, 68 },  bright = { 102, 221, 119 }, pair = "orange" },
+    teal    = { label = T("Teal"),    deep = { 0, 136, 136 },  bright = { 85, 221, 221 },  pair = "orange" },
+    sky     = { label = T("Sky"),     deep = { 0, 136, 204 },  bright = { 102, 204, 255 }, pair = "pink" },
+    blue    = { label = T("Blue"),    deep = { 34, 102, 204 }, bright = { 102, 170, 255 }, pair = "red" },
+    purple  = { label = T("Purple"),  deep = { 119, 68, 187 }, bright = { 187, 153, 255 }, pair = "gold" },
+    magenta = { label = T("Magenta"), deep = { 187, 34, 153 }, bright = { 255, 119, 221 }, pair = "teal" },
+    pink    = { label = T("Pink"),    deep = { 204, 51, 119 }, bright = { 255, 136, 187 }, pair = "sky" },
+    brown   = { label = T("Brown"),   deep = { 136, 85, 34 },  bright = { 221, 170, 119 }, pair = "teal" },
 }
 A.ACCENT_ORDER = { "red", "orange", "gold", "lime", "green", "teal", "sky", "blue", "purple", "magenta", "pink", "brown" }
 
 local WHITE, BLACK = { 255, 255, 255 }, { 0, 0, 0 }
 
 A.THEMES = {
-    white = { label = "White", accent = "red",
+    white = { label = T("White"), accent = "red",
               surface = WHITE, tint = { 238, 238, 238 }, fg = BLACK, border = BLACK,
               page = WHITE, page_fg = BLACK },
-    dark  = { label = "Dark", accent = "gold",
+    dark  = { label = T("Dark"), accent = "gold",
               surface = BLACK, tint = { 34, 34, 34 }, fg = WHITE, border = { 119, 119, 119 }, thin = true,
               page = BLACK, page_fg = WHITE },
-    paper = { label = "Paper", accent = "orange",
+    paper = { label = T("Paper"), accent = "orange",
               surface = { 255, 238, 204 }, tint = { 238, 221, 170 }, fg = { 34, 17, 0 }, border = { 68, 51, 34 },
               page = { 255, 238, 204 }, page_fg = { 34, 17, 0 } },
 }
@@ -142,7 +147,7 @@ local THEME_ALIAS = { noir = "dark" }
 -- The four card styles of every theme. Earlier versions stored "plum" and
 -- "wine"; those now mean the two plain styles.
 A.TONES = { "ink", "paper", "tint", "tint2" }
-local TONE_LABELS = { ink = "Plain", paper = "Plain, accents swapped", tint = "Tinted", tint2 = "Tinted, accents swapped" }
+local TONE_LABELS = { ink = T("Plain"), paper = T("Plain, accents swapped"), tint = T("Tinted"), tint2 = T("Tinted, accents swapped") }
 local TONE_ALIAS = { plum = "ink", wine = "paper" }
 
 function A.toneKey(name)
@@ -886,9 +891,10 @@ end
 function A.fmtMinutes(mins)
     mins = max(0, floor((tonumber(mins) or 0) + 0.5))
     local h, m = floor(mins / 60), mins % 60
-    if h > 0 and m > 0 then return string.format("%d h %d m", h, m) end
+    local mu = A.i18n.minute_unit
+    if h > 0 and m > 0 then return string.format("%d h %d %s", h, m, mu) end
     if h > 0 then return string.format("%d h", h) end
-    return string.format("%d m", m)
+    return string.format("%d %s", m, mu)
 end
 
 -- 14894 -> "14,894"
@@ -897,20 +903,20 @@ function A.thousands(n)
     local sign, digits = str:match("^(-?)(%d+)$")
     if not digits then return str end
     digits = digits:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    digits = digits:gsub(",", function() return A.i18n.thousands_separator end)
     return sign .. digits
 end
 
 function A.plural(n, one, many)
-    if n == 1 then return string.format("%d %s", n, one) end
-    return string.format("%d %s", n, many)
+    return string.format("%d %s", n, A.i18n.ngettext(one, many, n))
 end
 
--- Day/month names in the interface language (os.date gives English).
-function A.date(fmt, t)
-    local s = os.date(fmt, t)
-    local ok, r = pcall(A.host.localizeDate, s)
-    if ok and type(r) == "string" then return r end
-    return s
+-- Day/month names in the interface language: Reading Log's own catalogs
+-- (i18n.lua), else KOReader's translations of os.date's English names.
+function A.date(fmt, t) return A.i18n.date(fmt, t) end
+
+function A.decimal(n)
+    return (string.format("%.1f", n):gsub("%.", A.i18n.decimal_separator))
 end
 
 -- Days since the epoch for a local calendar date, anchored at noon so a DST
@@ -940,6 +946,8 @@ local function part(name)
 end
 
 part("host")
+-- English day and month names from KOReader's own translations (see i18n.lua)
+A.i18n.localize = A.host.localizeDate
 part("data")
 part("panels")
 part("settings")

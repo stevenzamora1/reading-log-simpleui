@@ -33,9 +33,18 @@ The ring designs and the idea of a reading dashboard come from
    - Android: `<koreader folder>/plugins/`
 2. Eject the e-reader and restart KOReader.
 
-**Updating:** replace the folder and restart. Your settings are kept (they
+**Updating:** Tools > Reading Log > Check for updates (below), or replace the
+folder and restart. Your settings are kept (they
 live in `settings/readinglog.lua`, outside the plugin folder; the highlight
 counts for Quote of the day sit beside it in `readinglog_highlights.lua`).
+
+## Updates
+
+KOReader menu > Tools > **Reading Log** > **Check for updates** looks for a
+newer release on GitHub, shows what's new, and installs it when you say so.
+Restart KOReader afterwards; your settings are kept. **Check for updates
+automatically** looks once a day when you're already online, and never
+installs without asking.
 
 ## Add cards
 
@@ -45,6 +54,11 @@ Simple UI's own modules, two side by side if you set their Column Width to
 50% (long-press > Column Width).
 
 Long-press any card for its settings.
+
+New in 1.2: **Spanish, French, Brazilian Portuguese and Italian** (numbers,
+dates and plurals follow your language too), the Dashboard follows Simple
+UI's wallpaper Background Opacity, and **Check for updates** in the Reading
+Log menu.
 
 New in 1.1:
 
@@ -118,6 +132,28 @@ search, last book, history, favorites, …) or any Simple UI Quick Action;
 **Icon…** picks one of 37 icons; **Name** renames it. The Mini dashboard's
 Control centre uses the same buttons.
 
+## Languages
+
+The cards, the Dashboard and their settings follow KOReader's language
+(Settings > Language): **English**, **Italian**, **Spanish**, **French** and
+**Brazilian Portuguese** (also used for Portuguese from Portugal). Numbers,
+dates, day and month initials and plurals follow the language too (14.894
+and "1 libro / 2 libros" in Spanish, for example). Book titles, authors,
+genres and names you type in are shown as they are. Restart KOReader after
+changing the language.
+
+Each language is one file in `readinglog/locales/`. To add one, see
+[TRANSLATING.md](TRANSLATING.md).
+
+## Wallpaper
+
+With a Simple UI wallpaper on, the Dashboard follows its **Background
+Opacity** (long-press > Background): below Solid, the Dashboard's page is
+left clear so the wallpaper shows around and between the cards. The cards
+and the tab bar stay solid so they stay readable, and the date, time and
+page titles at the top get a framed plate behind them. Cards on their own that
+match Simple UI already draw no background of their own.
+
 ## Shared with Simple UI
 
 - **Goals.** The year's book goal and the daily minutes goal are Simple UI's
@@ -148,20 +184,21 @@ Control centre uses the same buttons.
 
 On the first start, your Bookshelf-version settings (theme, accents, banner
 lines, collections, book club picks, Dashboard pages, card colours) are copied
-across. To copy them again: KOReader menu > Tools > **Reading Log** > Copy
-settings from the Bookshelf version. Both versions can be installed at once.
+across. Both versions can be installed at once.
 
 ## How it's put together
 
 | File | Why it is there |
 | --- | --- |
 | `main.lua` | Registers every card with Simple UI's module registry (Simple UI's own hook for other plugins' modules) and adds the Tools menu. |
+| `updater.lua` | Check for updates: asks GitHub for the latest release, downloads its zip and unpacks it over the plugin folder with KOReader's own archive reader. |
 | `readinglog/init.lua` | The drawing kit: themes, colours, rings, text, the Canvas each card is drawn on. Unchanged from the Bookshelf version apart from where it asks the host for things. |
 | `readinglog/host.lua` | Everything that used to come from Bookshelf, now from Simple UI and KOReader: the settings file, fonts, book facts, the library and its metadata, highlights, goals, finished books, covers, opening a book, quick actions, redrawing one card in place, and the once-a-minute clock. |
 | `readinglog/data.lua` | Reading figures from the statistics database, read off the paint path and cached. |
 | `readinglog/panels.lua` | One builder per card, and the Mini dashboard's small cards. The same file as the Bookshelf version. |
 | `readinglog/modules.lua` | Turns each card into a Simple UI module (build, height, tap regions), and the Dashboard. |
 | `readinglog/settings.lua`, `menus.lua` | Each card's options, written once and shown as Simple UI settings menus (and dialogs for the page editor and book club picks). |
+| `readinglog/i18n.lua`, `i18n/es.lua`, `i18n/fr.lua`, `i18n/pt_BR.lua` | The translations, applied where text is shown, so the cards themselves stay as written. |
 | `readinglog/colourtext.lua` | Keeps coloured text coloured on a colour screen (KOReader's text widget turns it grey). |
 
 ## Troubleshooting
@@ -181,6 +218,8 @@ settings from the Bookshelf version. Both versions can be installed at once.
   where the cards started; `colourtext.lua` is adapted from it.
 - [Reading Log for SimpleUI](https://github.com/BrownTigerz/simpleui_readinglog.koplugin)
   by BrownTigerz (TK), whose finish-date correction this version uses.
+- [DevGizmo86](https://github.com/DevGizmo86), for the translation system
+  and the Italian translation.
 - [KOReader](https://github.com/koreader/koreader) and its Reading statistics
   plugin, where all the numbers come from.
 

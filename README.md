@@ -36,14 +36,20 @@ This is the Simple UI version of [Reading Log for Bookshelf](https://github.com/
 
 ## Install
 
-1. Download `readinglog-simpleui-1.1.0.zip` from [Releases](../../releases) and unzip it.
+1. Download `readinglog-simpleui-1.2.0.zip` from [Releases](../../releases) and unzip it.
 2. Copy the `readinglog.koplugin` folder into KOReader's `plugins` folder:
    - Kobo: `.adds/koreader/plugins/` (`.adds` is hidden: in macOS Finder press <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>.</kbd>; in Windows Explorer choose View > Show > Hidden items)
    - Kindle: `/mnt/us/koreader/plugins/`
    - Android: `<koreader folder>/plugins/`
 3. Eject the e-reader and restart KOReader.
 
-**Updating:** replace the folder and restart. Your settings are kept (they live in `settings/readinglog.lua`, outside the plugin folder).
+**Updating:** Tools > Reading Log > **Check for updates** (see [Updates](#updates)), or replace the folder by hand and restart. Your settings are kept (they live in `settings/readinglog.lua`, outside the plugin folder).
+
+## Updates
+
+KOReader menu > Tools > **Reading Log** > **Check for updates** looks for a newer release here, shows what's new, and installs it when you say so (connect to Wi-Fi first, or KOReader will offer to). Restart KOReader afterwards. Your settings are kept.
+
+Turn on **Check for updates automatically** to have it look once a day when you're already online. It tells you when there's a new version and never installs one without asking.
 
 ## Add cards
 
@@ -71,6 +77,14 @@ Long-press any card for its settings.
 | This week vs last | Most-read authors | Finish by |
 | Finish forecast | Random pick | |
 | | Quote of the day | |
+
+### New in 1.2
+
+- **Spanish, French, Brazilian Portuguese and Italian**, following KOReader's language. Numbers, dates and plurals follow the language too, and each language is one file you can add to (translation system and Italian by [DevGizmo86](https://github.com/DevGizmo86), from [Reading Log for Bookshelf](https://github.com/stevenzamora1/reading-log)).
+- **Wallpaper**: the Dashboard follows Simple UI's Background Opacity.
+- **Tab names** that are too long for their tab get smaller instead of being cut off.
+- **Today's timeline** follows KOReader's 12/24-hour setting.
+- **Check for updates** from the Reading Log menu, and install them in one tap.
 
 ### New in 1.1
 
@@ -112,6 +126,27 @@ Long-press a card. Next to Simple UI's own Frame, Background, Top Margin and Col
 
 **Control centre buttons:** long-press > Content > tap a button. **Action…** picks a KOReader action (Wi-Fi, night mode, light, rotate, calendar, sleep, search, last book, history, favorites, …) or any Simple UI Quick Action; **Icon…** picks one of 37 icons; **Name** renames it.
 
+## Languages
+
+The cards, the Dashboard and their settings follow KOReader's language
+(Settings > Language): **English**, **Italian**, **Spanish**, **French** and
+**Brazilian Portuguese** (also used for Portuguese from Portugal). Numbers,
+dates, day and month initials and plurals follow the language too (14.894
+and "1 libro / 2 libros" in Spanish, for example). Book titles, authors,
+genres and names you type in are shown as they are. Restart KOReader after
+changing the language.
+
+Each language is one file in `readinglog/locales/`. To add one, see
+[TRANSLATING.md](readinglog.koplugin/TRANSLATING.md).
+
+## Wallpaper
+
+With a Simple UI wallpaper on, the Dashboard follows its **Background
+Opacity** (long-press > Background). Below Solid, the wallpaper shows around
+and between the cards; the cards and the tab bar stay solid so they stay
+readable, and the date, time and page titles at the top get a plate behind
+them.
+
 ## Shared with Simple UI
 
 - **Goals**: the year's book goal and the daily minutes goal are Simple UI's Reading goals. Change them in either place.
@@ -122,13 +157,14 @@ Long-press a card. Next to Simple UI's own Frame, Background, Top Margin and Col
 
 ## Coming from Reading Log for Bookshelf
 
-On the first start, your Bookshelf-version settings (theme, accents, collections, book club picks, Dashboard pages, card colours) are copied across. To copy them again: KOReader menu > Tools > **Reading Log** > Copy settings from the Bookshelf version. Both versions can be installed at once.
+On the first start, your Bookshelf-version settings (theme, accents, collections, book club picks, Dashboard pages, card colours) are copied across. Both versions can be installed at once.
 
 ## Troubleshooting
 
 - KOReader menu > Tools > Reading Log > **About** shows whether Simple UI was found.
 - Look and colours > **Diagnostics** shows the versions, theme and screen.
 - Problems are logged to `crash.log` with `[readinglog]`.
+- Wrong language? `crash.log` has a `[reading-log i18n]` line saying which language Reading Log found and which file it used.
 
 ## Credits
 
@@ -136,6 +172,7 @@ On the first start, your Bookshelf-version settings (theme, accents, collections
 - [Simple UI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) by Doctor Hetfield, which these modules plug into.
 - [Bookshelf](https://github.com/AndyHazz/bookshelf.koplugin) by AndyHazz, where the cards started.
 - [BrownTigerz (TK)](https://github.com/BrownTigerz/simpleui_readinglog.koplugin), whose finish-date correction this version uses.
+- [DevGizmo86](https://github.com/DevGizmo86), for the translation system and the Italian translation.
 - [KOReader](https://github.com/koreader/koreader) and its Reading statistics plugin.
 
 Made by Steven ([@stevenzamora1](https://github.com/stevenzamora1)).

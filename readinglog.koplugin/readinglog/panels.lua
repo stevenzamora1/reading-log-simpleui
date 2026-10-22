@@ -17,6 +17,7 @@ card's reference design, and every length is a reference length times `s`.
 ]]
 
 local A = ...
+local T = A._
 local D = A.D
 local P = {}
 A.panels = P
@@ -71,6 +72,18 @@ local function card(env, s)
     }
 end
 
+-- Over a Simple UI wallpaper (the Dashboard's page left clear, see
+-- modules.lua), text that sits straight on the page gets a plate behind it
+-- in the page colour, framed like the tab bar, so it stays readable on any
+-- wallpaper. Without a wallpaper nothing changes. Returns the padding to
+-- inset the text by.
+local function platePad(px) return px(26), px(18) end
+local function plate(c, x, y, w, h, px)
+    local bg, fg = A.dashPage()
+    local r = max(6, floor(min(h * 0.3, px(32))))
+    c:frame(x, y, w, h, r, max(2, round(px(3))), fg, bg)
+end
+
 -- Two centred lines for a card with nothing to show yet.
 local function emptyState(env, c, s, heading, line1, line2)
     local _, fpx = scaler(s, env.ts)
@@ -89,7 +102,7 @@ local function emptyState(env, c, s, heading, line1, line2)
 end
 
 local function monthLetter(m)
-    return ({ "J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D" })[m]
+    return A.i18n.monthLetter(m)
 end
 
 local function shortMonth(m)
@@ -118,9 +131,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.banner = {
-    does = "flashes the screen clean",
-    title = "Banner", tone = "ink", ratio = 0.19, ratio_narrow = 0.42, tick = true,
-    summary = "Clock, date and your library's name, or today's reading at a glance. Works offline.",
+    does = T("flashes the screen clean"),
+    title = T("Banner"), tone = "ink", ratio = 0.19, ratio_narrow = 0.42, tick = true,
+    summary = T("Clock, date and your library's name, or today's reading at a glance. Works offline."),
 }
 
 -- Tapping the clock flashes the whole screen once: the manual cure for
@@ -164,6 +177,9 @@ function P.banner.heading(env)
         fg, accent, muted = env.tone.fg, env.tone.accent, env.tone.muted
     end
     local pad = env.nested and 0 or px(36)
+    local see = env.nested and env.see
+    local plate_x, plate_y = 0, 0
+    if see then plate_x, plate_y = platePad(px); pad = plate_x end
     local now = os.time()
     local time_str, suffix = clockText(now)
     local kicker = A.date("%A", now) .. "  \xE2\x80\xA2  " .. tonumber(os.date("%d", now)) .. " " .. A.date("%B", now)
@@ -173,6 +189,13 @@ function P.banner.heading(env)
     local tight = round(t_t.h * 0.14)
     local block = t_k.h + t_t.h - tight
     local y = floor((h - block) / 2)
+    local line1, line2 = env.cfg("line1", ""), env.cfg("line2", "")
+    if see then
+        local left_w = max(t_k.w, t_t.w + (t_suf and (t_suf.w + px(10)) or 0))
+        local pw = (line1 ~= "" or line2 ~= "") and w or min(w, left_w + 2 * plate_x)
+        local ph = min(h, block + 2 * plate_y)
+        plate(c, 0, floor((h - ph) / 2), pw, ph, px)
+    end
     c:put(t_k, pad, y)
     local ty = y + t_k.h - tight
     c:put(t_t, pad - round(t_t.px * 0.03), ty)
@@ -180,7 +203,6 @@ function P.banner.heading(env)
     local left_w = max(t_k.w, t_t.w + (t_suf and (t_suf.w + px(10)) or 0))
 
     -- your two lines, right-aligned, in the same small-over-big pattern
-    local line1, line2 = env.cfg("line1", ""), env.cfg("line2", "")
     local room = w - 2 * pad - left_w - px(48)
     if room > px(120) and (line1 ~= "" or line2 ~= "") then
         local t1 = line1 ~= "" and c:text(line1, fpx(24), { bold = true, caps = true, color = muted, max_w = room }) or nil
@@ -224,13 +246,13 @@ function P.banner.glance(env)
     local vals
     if st then
         vals = {
-            { A.thousands(st.today.pages or 0), (st.today.pages == 1) and "page today" or "pages today", tone.accent },
-            { A.fmtMinutes((st.today.secs or 0) / 60), "read today", tone.accent2 },
-            { tostring(st.streak or 0), "day streak", tone.fg },
+            { A.thousands(st.today.pages or 0), (st.today.pages == 1) and T("page today") or T("pages today"), tone.accent },
+            { A.fmtMinutes((st.today.secs or 0) / 60), T("read today"), tone.accent2 },
+            { tostring(st.streak or 0), A.i18n.ngettext("day streak", "day streak", st.streak or 0), tone.fg },
         }
     else
         local dash = st == false and "\xE2\x80\x94" or "\xE2\x80\xA6"
-        vals = { { dash, "pages today", tone.accent }, { dash, "read today", tone.accent2 }, { dash, "day streak", tone.fg } }
+        vals = { { dash, T("pages today"), tone.accent }, { dash, T("read today"), tone.accent2 }, { dash, T("day streak"), tone.fg } }
     end
     local x0 = pad + left_w + px(40)
     local area = w - pad - x0
@@ -324,9 +346,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.continue = {
-    does = "opens the book",
-    title = "Continue reading", tone = "paper", ratio = 0.36, ratio_narrow = 0.62,
-    summary = "Books in progress, with cover and time left. Works offline.",
+    does = T("opens the book"),
+    title = T("Continue reading"), tone = "paper", ratio = 0.36, ratio_narrow = 0.62,
+    summary = T("Books in progress, with cover and time left. Works offline."),
 }
 
 local SAMPLE_READING = {
@@ -347,8 +369,8 @@ function P.continue.build(env)
     local c = card(env, s)
     local list = readingNow(env)
     if #list == 0 then
-        return emptyState(env, c, s, "Continue reading", "Nothing in progress",
-            "Open a book and it shows up here.")
+        return emptyState(env, c, s, T("Continue reading"), T("Nothing in progress"),
+            T("Open a book and it shows up here."))
     end
     local idx = A.clamp(tonumber(A.state.continue_idx) or 1, 1, #list)
     A.state.continue_idx = idx
@@ -360,7 +382,7 @@ function P.continue.build(env)
     local function f(n) return max(floor_px, floor(n * s * boost(n, env.ts) + 0.5)) end
     local edge = tone.border or tone.muted
     local pct_txt = string.format("%d%%", floor(book.pct * 100 + 0.5))
-    local left_txt = book.left_min and (A.fmtMinutes(book.left_min) .. " left") or nil
+    local left_txt = book.left_min and (A.fmtMinutes(book.left_min) .. T(" left")) or nil
     local bar_h = max(4, px(10))
     -- how long this book has been on the go, from the first session the
     -- statistics recorded, and the time spent reading it so far
@@ -373,8 +395,8 @@ function P.continue.build(env)
     end
     local span_txt, time_txt
     if days_n then
-        span_txt = A.plural(days_n, "day", "days") .. " of reading"
-        if book_secs and book_secs >= 60 then time_txt = A.fmtMinutes(book_secs / 60) .. " read" end
+        span_txt = A.plural(days_n, "day", "days") .. T(" of reading")
+        if book_secs and book_secs >= 60 then time_txt = A.fmtMinutes(book_secs / 60) .. T(" read") end
     end
 
     -- progress bar, "20%  ...  4 h left", and the two buttons, in a column
@@ -395,13 +417,13 @@ function P.continue.build(env)
             local bgap = px(16)
             local w1 = two and floor((width - bgap) / 2) or width
             c:rrect(x, y_btn, w1, btn_h, btn_h / 2, tone.btn)
-            c:label("Continue", f(28), x + w1 / 2, y_btn + btn_h / 2,
+            c:label(T("Continue"), f(28), x + w1 / 2, y_btn + btn_h / 2,
                 { bold = true, color = tone.btn_fg, anchor = "c", valign = "mid" })
             c:region("open", x, y_btn, w1, btn_h, px(6))
             if two then
                 local x2, w2 = x + w1 + bgap, width - w1 - bgap
                 c:frame(x2, y_btn, w2, btn_h, btn_h / 2, max(2, px(4)), tone.border or tone.fg, tone.bg)
-                c:label("Details", f(28), x2 + w2 / 2, y_btn + btn_h / 2,
+                c:label(T("Details"), f(28), x2 + w2 / 2, y_btn + btn_h / 2,
                     { bold = true, color = tone.fg, anchor = "c", valign = "mid" })
                 c:region("details", x2, y_btn, w2, btn_h, px(6))
             end
@@ -424,11 +446,11 @@ function P.continue.build(env)
             used = pw + px(14)
         end
         -- the label is the first thing to go when the column is narrow
-        local t_label = c:text("Continue reading", f(24), { bold = true, caps = true, color = tone.accent })
+        local t_label = c:text(T("Continue reading"), f(24), { bold = true, caps = true, color = tone.accent })
         if t_label.w <= width - used then
             c:put(t_label, x, y + pill_h / 2, "l", "mid")
         elseif used == 0 then
-            c:label("Reading", f(24), x, y + pill_h / 2,
+            c:label(T("Reading"), f(24), x, y + pill_h / 2,
                 { bold = true, caps = true, color = tone.accent, valign = "mid", max_w = width })
         end
         return y + pill_h
@@ -541,9 +563,9 @@ function P.continue.controls(region) return region == "open" or region == "detai
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.activity = {
-    does = "opens reading progress",
-    title = "Activity rings", tone = "plum", ratio = 0.61, ratio_narrow = 0.61,
-    summary = "Today's pages, minutes and streak as rings. Needs the statistics plugin.",
+    does = T("opens reading progress"),
+    title = T("Activity rings"), tone = "plum", ratio = 0.61, ratio_narrow = 0.61,
+    summary = T("Today's pages, minutes and streak as rings. Needs the statistics plugin."),
 }
 
 local SAMPLE_STATS = {
@@ -569,12 +591,12 @@ function P.activity.build(env)
     local c = card(env, s)
     local st = statsFor(env)
     if st == false then
-        return emptyState(env, c, s, "Activity", "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, T("Activity"), T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(30)
-    local t_label = c:label("Activity", fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
-    c:label("Today", fpx(22), w - pad, px(24), { color = tone.accent2, anchor = "r" })
+    local t_label = c:label(T("Activity"), fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
+    c:label(T("Today"), fpx(22), w - pad, px(24), { color = tone.accent2, anchor = "r" })
 
     local pages = st and st.today.pages or 0
     local mins = st and floor(st.today.secs / 60 + 0.5) or 0
@@ -596,8 +618,8 @@ function P.activity.build(env)
 
     local lines = {
         st and A.plural(pages, "page", "pages") or "\xE2\x80\xA6",
-        st and (A.fmtMinutes(mins) .. " read") or "\xE2\x80\xA6",
-        st and (streak > 0 and ("Streak " .. A.plural(streak, "day", "days")) or "No streak yet") or "\xE2\x80\xA6",
+        st and (A.fmtMinutes(mins) .. T(" read")) or "\xE2\x80\xA6",
+        st and (streak > 0 and (T("Streak ") .. A.plural(streak, "day", "days")) or T("No streak yet")) or "\xE2\x80\xA6",
     }
     local tx = cx + R + px(34)
     local room = w - pad - tx
@@ -631,15 +653,15 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.goal = {
-    does = "nothing",
-    title = "Year goal", tone = "wine", ratio = 0.61, ratio_narrow = 0.61,
-    summary = "Books finished this year against your goal. Works offline.",
+    does = T("nothing"),
+    title = T("Year goal"), tone = "wine", ratio = 0.61, ratio_narrow = 0.61,
+    summary = T("Books finished this year against your goal. Works offline."),
 }
 
 local function yearFor(env)
     if env.sample then
         return { year = os.date("*t").year, month = os.date("*t").month, total = 29, months = {}, list = {}, genres = {
-            { name = "Horror", n = 7 }, { name = "Literary Fiction", n = 7 }, { name = "Thriller", n = 7 } } }
+            { name = T("Horror"), n = 7 }, { name = T("Literary Fiction"), n = 7 }, { name = T("Thriller"), n = 7 } } }
     end
     return D.year(env.refresh)
 end
@@ -653,7 +675,7 @@ function P.goal.build(env)
     local yr = yearFor(env)
     local t = os.date("*t")
     local pad = px(32)
-    local t_label = c:label(tostring(t.year) .. " goal", fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
+    local t_label = c:label(tostring(t.year) .. T(" goal"), fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
 
     local target, other = D.yearGoal()
     if env.sample then target, other = 36, 0 end
@@ -667,20 +689,20 @@ function P.goal.build(env)
     if not yr then
         status = "\xE2\x80\xA6"
     elseif done >= target then
-        status = "Goal reached"
+        status = T("Goal reached")
     elseif diff >= 1 then
-        status = A.plural(floor(diff), "book", "books") .. " ahead"
+        status = A.plural(floor(diff), "book", "books") .. T(" ahead")
     elseif diff <= -1 then
-        status = A.plural(ceil(-diff), "book", "books") .. " behind"
+        status = A.plural(ceil(-diff), "book", "books") .. T(" behind")
     else
-        status = "On track"
+        status = T("On track")
     end
 
     local top = px(22) + t_label.h
     local pill_h = fpx(56)
     local big_px = fpx(strip and 120 or 150)
     local big = c:text(yr and tostring(done) or "\xE2\x80\xA6", big_px, { bold = true, color = tone.fg })
-    local of_txt = "of " .. A.plural(target, "book", "books")
+    local of_txt = T("of ") .. A.plural(target, "book", "books")
 
     -- where the pill goes, and the band the number is centred in
     local pill_x, pill_y, pill_w, band_bottom
@@ -772,7 +794,7 @@ local function coverShelf(env, c, s, o)
 
     if #items == 0 then
         local cy = top + avail_h / 2
-        local t1 = c:text(o.empty or "Nothing here yet", fpx(28), { bold = true, color = tone.fg, max_w = area_w })
+        local t1 = c:text(o.empty or T("Nothing here yet"), fpx(28), { bold = true, color = tone.fg, max_w = area_w })
         c:put(t1, area_x + area_w / 2, cy - t1.h / 2, "c")
         if o.empty_hint then
             c:label(o.empty_hint, fpx(22), area_x + area_w / 2, cy + t1.h / 2 + px(4),
@@ -821,9 +843,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.tbr = {
-    does = "opens the book tapped",
-    title = "TBR shelf", tone = "paper", ratio = 0.41, ratio_narrow = 0.6, slots = true,
-    summary = "A row of covers from one of your collections. Works offline.",
+    does = T("opens the book tapped"),
+    title = T("TBR shelf"), tone = "paper", ratio = 0.41, ratio_narrow = 0.6, slots = true,
+    summary = T("A row of covers from one of your collections. Works offline."),
 }
 
 -- Which collection the shelf shows: the chosen one, else a likely TBR.
@@ -847,9 +869,9 @@ local function tbrBooks(env)
     if env.sample then
         local out = {}
         for i, t in ipairs{ "Carrie", "Needless Street", "Wayward Girls", "Ask for Andrea", "Come Closer", "HEX" } do
-            out[i] = { title = t, label = (i == 1 or i == 5) and "Digital" or "Hardcopy", strong = not (i == 1 or i == 5) }
+            out[i] = { title = t, label = (i == 1 or i == 5) and T("Digital") or T("Hardcopy"), strong = not (i == 1 or i == 5) }
         end
-        return out, 6, "October TBR"
+        return out, 6, T("October TBR")
     end
     local coll = P.tbr.collection(env)
     local files = coll and D.collection(coll) or {}
@@ -867,15 +889,15 @@ local function tbrBooks(env)
         local label, strong
         if mode == "format" then
             strong = D.inCollection(hard, fp)
-            label = strong and "Hardcopy" or "Digital"
+            label = strong and T("Hardcopy") or T("Digital")
         elseif mode == "none" then
             label = nil
         elseif status == "finished" then
-            label, strong = "Read", true
+            label, strong = T("Read"), true
         elseif pct and pct > 0 then
             label, strong = string.format("%d%%", floor(pct * 100 + 0.5)), true
         else
-            label = "To read"
+            label = T("To read")
         end
         out[#out + 1] = { fp = fp, title = info.title, label = label, strong = strong }
     end
@@ -890,14 +912,14 @@ function P.tbr.build(env)
     local books, todo, coll = tbrBooks(env)
     local title = env.cfg("title", "")
     if title == "" then
-        title = env.sample and "October TBR" or (A.date("%B") .. " TBR")
+        title = env.sample and T("October TBR") or (A.date("%B") .. T(" TBR"))
     end
-    local tagline = env.sample and "It's spooky season" or env.cfg("tagline", "")
-    local name = coll and D.collectionLabel(coll) or "a collection"
+    local tagline = env.sample and T("It's spooky season") or env.cfg("tagline", "")
+    local name = coll and D.collectionLabel(coll) or T("a collection")
     local files = coverShelf(env, c, s, {
-        title = title, dots = true, counter = todo .. " to read", tagline = tagline,
+        title = title, dots = true, counter = todo .. T(" to read"), tagline = tagline,
         items = books, max_n = A.clamp(tonumber(env.cfg("count", 6)) or 6, 2, 10),
-        empty = "No books here yet", empty_hint = "Add some to \xE2\x80\x9C" .. name .. "\xE2\x80\x9D.",
+        empty = T("No books here yet"), empty_hint = T("Add some to \xE2\x80\x9C") .. name .. "\xE2\x80\x9D.",
     })
     if not env.sample then A.state["tbr_files_" .. tostring(env.slot or 1)] = files end
     return c
@@ -916,9 +938,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.genres = {
-    does = "nothing",
-    title = "Top genres", tone = "plum", ratio = 0.25, ratio_narrow = 0.52,
-    summary = "The genres you finished most this year. Works offline.",
+    does = T("nothing"),
+    title = T("Top genres"), tone = "plum", ratio = 0.25, ratio_narrow = 0.52,
+    summary = T("The genres you finished most this year. Works offline."),
 }
 
 function P.genres.build(env)
@@ -929,9 +951,9 @@ function P.genres.build(env)
     local c = card(env, s)
     local yr = yearFor(env)
     local pad = px(38)
-    local t_head = c:label("Top genres", fpx(22), pad, px(26), { bold = true, caps = true, color = tone.accent })
+    local t_head = c:label(T("Top genres"), fpx(22), pad, px(26), { bold = true, caps = true, color = tone.accent })
     local year = yr and yr.year or os.date("*t").year
-    local sub = c:text("books finished in " .. year, fpx(22), { bold = true, color = tone.muted })
+    local sub = c:text(T("books finished in ") .. year, fpx(22), { bold = true, color = tone.muted })
     if pad + t_head.w + px(30) + sub.w <= w - pad then c:put(sub, w - pad, px(26), "r") end
 
     local list = yr and yr.genres or {}
@@ -940,7 +962,7 @@ function P.genres.build(env)
         return c
     end
     if #list == 0 then
-        c:label("Finish a book this year to see your genres", fpx(24), w / 2, h / 2 + px(10),
+        c:label(T("Finish a book this year to see your genres"), fpx(24), w / 2, h / 2 + px(10),
             { anchor = "c", valign = "mid", color = tone.muted, max_w = w - 2 * pad })
         return c
     end
@@ -971,9 +993,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.year_covers = {
-    does = "shows the book tapped (elsewhere: opens the reading calendar)",
-    title = "Year in covers", tone = "ink", ratio = 0.34, ratio_narrow = 0.7,
-    summary = "Every cover you finished this year, in the order you finished them. Works offline.",
+    does = T("shows the book tapped (elsewhere: opens the reading calendar)"),
+    title = T("Year in covers"), tone = "ink", ratio = 0.34, ratio_narrow = 0.7,
+    summary = T("Every cover you finished this year, in the order you finished them. Works offline."),
 }
 
 -- The grid that shows n covers (2:3) biggest in a W x H area, `gap` apart
@@ -1002,12 +1024,12 @@ function P.year_covers.build(env)
     local c = card(env, s)
     local yr = yearFor(env)
     if yr and yr.total == 0 and not env.sample then
-        return emptyState(env, c, s, "Year in covers", "No books finished yet",
-            "Each book you finish this year adds its cover here.")
+        return emptyState(env, c, s, T("Year in covers"), T("No books finished yet"),
+            T("Each book you finish this year adds its cover here."))
     end
     local pad = px(36)
-    local t_head = c:label("Year in covers", fpx(22), pad, px(26), { bold = true, caps = true, color = tone.accent })
-    c:label(yr and (yr.total .. " finished") or "\xE2\x80\xA6", fpx(24), w - pad, px(26) + t_head.base,
+    local t_head = c:label(T("Year in covers"), fpx(22), pad, px(26), { bold = true, caps = true, color = tone.accent })
+    c:label(yr and (yr.total .. T(" finished")) or "\xE2\x80\xA6", fpx(24), w - pad, px(26) + t_head.base,
         { bold = true, color = tone.fg, anchor = "r", valign = "base" })
     if not yr then return c end
 
@@ -1063,8 +1085,8 @@ function P.year_covers.build(env)
         local x, y = cell(1)
         c:rrect(x, y, cw, ch, max(2, px(6)), tone.track)
         local t_n = c:text("+" .. more, fpx(cw > px(70) and 34 or 26), { bold = true, color = tone.fg, max_w = cw - 4 })
-        local t_e = c:text("earlier", fpx(19), { bold = true, color = tone.label })
-        if t_e.w > cw - 4 then t_e = c:text("more", fpx(17), { bold = true, color = tone.label }) end
+        local t_e = c:text(T("earlier"), fpx(19), { bold = true, color = tone.label })
+        if t_e.w > cw - 4 then t_e = c:text(T("more"), fpx(17), { bold = true, color = tone.label }) end
         if t_e.w > cw - 4 then t_e = nil end
         local ty = y + floor((ch - t_n.h - (t_e and t_e.h or 0)) / 2)
         c:put(t_n, x + cw / 2, ty, "c")
@@ -1103,8 +1125,8 @@ function P.year_covers.months(env)
     local c = card(env, s)
     local yr = yearFor(env)
     local pad = px(36)
-    local t_head = c:label("Year in covers", fpx(22), pad, px(26), { bold = true, caps = true, color = tone.accent })
-    c:label(yr and (yr.total .. " finished") or "\xE2\x80\xA6", fpx(24), w - pad, px(26) + t_head.base,
+    local t_head = c:label(T("Year in covers"), fpx(22), pad, px(26), { bold = true, caps = true, color = tone.accent })
+    c:label(yr and (yr.total .. T(" finished")) or "\xE2\x80\xA6", fpx(24), w - pad, px(26) + t_head.base,
         { bold = true, color = tone.fg, anchor = "r", valign = "base" })
 
     local t_letter = c:text("M", fpx(22), { color = tone.muted })
@@ -1167,12 +1189,13 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.week = {
-    does = "opens the reading calendar",
-    title = "This week", tone = "ink", ratio = 0.61, ratio_narrow = 0.61,
-    summary = "Pages or minutes read each day this week. Needs the statistics plugin.",
+    does = T("opens the reading calendar"),
+    title = T("This week"), tone = "ink", ratio = 0.61, ratio_narrow = 0.61,
+    summary = T("Pages or minutes read each day this week. Needs the statistics plugin."),
 }
 
-local DAY_LETTERS = { "S", "M", "T", "W", "T", "F", "S" }
+local DAY_LETTERS = {}
+for day = 1, 7 do DAY_LETTERS[day] = A.i18n.dayLetter(day) end
 
 function P.week.build(env)
     local w, h, tone = env.w, env.h, env.tone
@@ -1181,12 +1204,12 @@ function P.week.build(env)
     local c = card(env, s)
     local st = statsFor(env)
     if st == false then
-        return emptyState(env, c, s, "This week", "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, T("This week"), T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(30)
     local by_minutes = env.cfg("metric", "pages") == "minutes"
-    local t_head = c:label("This week", fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
+    local t_head = c:label(T("This week"), fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
     local total
     if not st then total = "\xE2\x80\xA6"
     elseif by_minutes then total = A.fmtMinutes(st.week_secs / 60)
@@ -1229,9 +1252,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.heatmap = {
-    does = "opens the reading calendar",
-    title = "Reading heatmap", tone = "plum", ratio = 0.27, ratio_narrow = 0.6,
-    summary = "A square for every day, brighter the more you read. Needs the statistics plugin.",
+    does = T("opens the reading calendar"),
+    title = T("Reading heatmap"), tone = "plum", ratio = 0.27, ratio_narrow = 0.6,
+    summary = T("A square for every day, brighter the more you read. Needs the statistics plugin."),
 }
 
 function P.heatmap.build(env)
@@ -1241,18 +1264,18 @@ function P.heatmap.build(env)
     local c = card(env, s)
     local st = statsFor(env)
     if st == false then
-        return emptyState(env, c, s, "Reading heatmap", "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, T("Reading heatmap"), T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(36)
-    local t_head = c:label("Reading heatmap", fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
+    local t_head = c:label(T("Reading heatmap"), fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
     if st then
-        local info = "Streak " .. st.streak .. "  \xC2\xB7  Best " .. st.best
+        local info = T("Streak ") .. st.streak .. T("  \xC2\xB7  Best ") .. st.best
         local t_info = c:text(info, fpx(22), { bold = true, color = tone.muted })
         if pad + t_head.w + px(24) + t_info.w <= w - pad then c:put(t_info, w - pad, px(24), "r") end
     end
 
-    local t_m = c:text("Mar", fpx(17), { color = tone.muted })
+    local t_m = c:text(shortMonth(3), fpx(17), { color = tone.muted })
     local grid_top = px(24) + t_head.h + px(8) + t_m.h + px(4)
     local grid_h = h - grid_top - px(24)
     local g = max(2, px(5))
@@ -1340,9 +1363,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.finished = {
-    does = "shows the book tapped",
-    title = "Recently finished", tone = "wine", ratio = 0.36, ratio_narrow = 0.6,
-    summary = "The last few books you finished this year. Works offline.",
+    does = T("shows the book tapped"),
+    title = T("Recently finished"), tone = "wine", ratio = 0.36, ratio_narrow = 0.6,
+    summary = T("The last few books you finished this year. Works offline."),
 }
 
 function P.finished.build(env)
@@ -1363,10 +1386,10 @@ function P.finished.build(env)
         items[i] = { fp = b.fp, title = b.title, label = b.day .. " " .. shortMonth(b.month), strong = true }
     end
     local files = coverShelf(env, c, s, {
-        title = "Recently finished", counter = yr and (yr.total .. " this year") or nil,
+        title = T("Recently finished"), counter = yr and (yr.total .. T(" this year")) or nil,
         counter_color = tone.fg, items = items,
         max_n = A.clamp(tonumber(env.cfg("count", 6)) or 6, 2, 10),
-        empty = yr == nil and "\xE2\x80\xA6" or "Nothing finished yet this year",
+        empty = yr == nil and "\xE2\x80\xA6" or T("Nothing finished yet this year"),
     })
     if not env.sample then A.state.finished_files = files end
     return c
@@ -1387,12 +1410,12 @@ end
 
 local function longestCard(period)
     local def = {
-        does = "shows the book tapped",
-        title = period == "month" and "Longest reads (month)" or "Longest reads (year)",
+        does = T("shows the book tapped"),
+        title = period == "month" and T("Longest reads (month)") or T("Longest reads (year)"),
         tone = period == "month" and "tint2" or "tint", ratio = 0.62, ratio_narrow = 0.75,
         summary = period == "month"
-            and "The books you finished this month that took longest, by reading time or days. Needs the statistics plugin."
-            or "The books you finished this year that took longest, by reading time or days. Needs the statistics plugin.",
+            and T("The books you finished this month that took longest, by reading time or days. Needs the statistics plugin.")
+            or T("The books you finished this year that took longest, by reading time or days. Needs the statistics plugin."),
     }
     local state_key = "longest_files_" .. period
 
@@ -1421,11 +1444,11 @@ local function longestCard(period)
             rows = D.longest(env.refresh, nil, by)
         end
         if rows == false then
-            return emptyState(env, c, s, "Longest reads", "No reading statistics",
-                "Turn on KOReader's Reading statistics plugin.")
+            return emptyState(env, c, s, T("Longest reads"), T("No reading statistics"),
+                T("Turn on KOReader's Reading statistics plugin."))
         end
         local pad = px(28)
-        local t_head = c:label("Longest reads", fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
+        local t_head = c:label(T("Longest reads"), fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
         local t_when = c:text(when, fpx(21), { bold = true, color = tone.muted })
         if pad + t_head.w + px(16) + t_when.w <= w - pad then
             c:put(t_when, w - pad, px(22) + t_head.base, "r", "base")
@@ -1433,7 +1456,7 @@ local function longestCard(period)
         local top = px(22) + t_head.h + px(14)
         if not rows then return c end
         if #rows == 0 then
-            local msg = period == "month" and ("Nothing finished in " .. when) or "Nothing finished this year yet"
+            local msg = period == "month" and (T("Nothing finished in ") .. when) or T("Nothing finished this year yet")
             c:label(msg, fpx(24), w / 2, top + (h - top) / 2, { anchor = "c", valign = "mid", color = tone.muted, max_w = w - 2 * pad })
             return c
         end
@@ -1503,8 +1526,8 @@ local function longestCard(period)
             -- the whole period: how many books, how much reading in them
             local secs = 0
             for _, r in ipairs(rows) do secs = secs + (r.secs or 0) end
-            local line = A.plural(#rows, "book", "books") .. " finished  \xC2\xB7  "
-                .. A.fmtMinutes(secs / 60) .. " read in them"
+            local line = A.plural(#rows, "book", "books") .. T(" finished  \xC2\xB7  ")
+                .. A.fmtMinutes(secs / 60) .. T(" read in them")
             c:label(line, fpx(19), pad, h - px(20), { valign = "base", color = tone.muted, max_w = w - 2 * pad })
         end
         if not env.sample then A.state[state_key] = files end
@@ -1527,9 +1550,9 @@ P.longest_month = longestCard("month")
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.deadline = {
-    does = "opens its book",
-    title = "Finish by", tone = "wine", ratio = 0.61, ratio_narrow = 0.61, slots = true,
-    summary = "Pages a day to finish a book by a date. Works offline.",
+    does = T("opens its book"),
+    title = T("Finish by"), tone = "wine", ratio = 0.61, ratio_narrow = 0.61, slots = true,
+    summary = T("Pages a day to finish a book by a date. Works offline."),
 }
 
 function P.deadline.state(env)
@@ -1547,7 +1570,7 @@ function P.deadline.state(env)
     local info = D.info(fp)
     local days_left = due - today
     local st = {
-        fp = fp, title = info.title, label = env.cfg("label", "Finish by"),
+        fp = fp, title = info.title, label = env.cfg("label", T("Finish by")),
         pct = pct, pages = tonumber(pages), days_left = days_left,
         due_txt = d .. " " .. shortMonth(m), done = pct >= 0.995,
     }
@@ -1556,10 +1579,10 @@ function P.deadline.state(env)
     local divisor = max(1, days_left + 1) -- today still counts
     if st.pages and st.pages > 0 then
         st.per_day = ceil(st.pages * (1 - pct) / divisor)
-        st.unit = "pages a day"
+        st.unit = T("pages a day")
     else
         st.per_day = ceil(100 * (1 - pct) / divisor)
-        st.unit = "% a day"
+        st.unit = T("% a day")
     end
     return st
 end
@@ -1571,19 +1594,19 @@ function P.deadline.build(env)
     local c = card(env, s)
     local st
     if env.sample then
-        st = { title = "Piranesi", label = "Library loan", pct = 0.71, days_left = 12, due_txt = "21 Oct",
-               expected = 0.6, per_day = 7, unit = "pages a day" }
+        st = { title = "Piranesi", label = T("Library loan"), pct = 0.71, days_left = 12, due_txt = T("21 Oct"),
+               expected = 0.6, per_day = 7, unit = T("pages a day") }
     else
         st = P.deadline.state(env)
     end
     if not st then
-        return emptyState(env, c, s, "Finish by", "Pick a book and a date",
-            "Long-press this card, then Module settings.")
+        return emptyState(env, c, s, T("Finish by"), T("Pick a book and a date"),
+            T("Long-press this card, then Module settings."))
     end
     if not env.sample then A.state["deadline_fp_" .. tostring(env.slot or 1)] = st.fp end
     local pad = px(32)
-    local head = st.label ~= "" and st.label or "Finish by"
-    head = (head:lower() == "finish by") and ("Finish by " .. st.due_txt) or (head .. "  \xC2\xB7  due " .. st.due_txt)
+    local head = st.label ~= "" and st.label or T("Finish by")
+    head = (head:lower() == T("finish by")) and (T("Finish by ") .. st.due_txt) or (head .. T("  \xC2\xB7  due ") .. st.due_txt)
     local t_head = c:label(head, fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent, max_w = w - 2 * pad })
     local t_title = c:label(st.title, fpx(32), pad, px(24) + t_head.h + px(4), { bold = true, color = tone.fg, max_w = w - 2 * pad })
 
@@ -1593,10 +1616,10 @@ function P.deadline.build(env)
     local bar_y = pill_y - px(18) - bar_h
     local top = px(24) + t_head.h + px(4) + t_title.h
     local big_txt, unit_txt
-    if st.done then big_txt, unit_txt = "Done", ""
-    elseif st.days_left < 0 then big_txt, unit_txt = tostring(-st.days_left), (st.days_left == -1 and "day over" or "days over")
-    elseif st.days_left == 0 then big_txt, unit_txt = "Today", ""
-    else big_txt, unit_txt = tostring(st.days_left), (st.days_left == 1 and "day left" or "days left") end
+    if st.done then big_txt, unit_txt = T("Done"), ""
+    elseif st.days_left < 0 then big_txt, unit_txt = tostring(-st.days_left), (st.days_left == -1 and T("day over") or T("days over"))
+    elseif st.days_left == 0 then big_txt, unit_txt = T("Today"), ""
+    else big_txt, unit_txt = tostring(st.days_left), (st.days_left == 1 and T("day left") or T("days left")) end
     local room = bar_y - px(6) - top
     local big_px = min(fpx(92), floor(room * 0.8))
     local big = c:text(big_txt, big_px, { bold = true, color = tone.fg })
@@ -1626,10 +1649,10 @@ function P.deadline.build(env)
     end
 
     local status
-    if st.done then status = "Finished"
-    elseif st.days_left < 0 then status = "Past due  \xC2\xB7  " .. floor(st.pct * 100 + 0.5) .. "% read"
-    elseif st.pct + 0.02 >= st.expected then status = "On pace  \xC2\xB7  " .. floor(st.pct * 100 + 0.5) .. "% read"
-    else status = "Behind  \xC2\xB7  " .. floor(st.pct * 100 + 0.5) .. "% read" end
+    if st.done then status = T("Finished")
+    elseif st.days_left < 0 then status = T("Past due  \xC2\xB7  ") .. floor(st.pct * 100 + 0.5) .. T("% read")
+    elseif st.pct + 0.02 >= st.expected then status = T("On pace  \xC2\xB7  ") .. floor(st.pct * 100 + 0.5) .. T("% read")
+    else status = T("Behind  \xC2\xB7  ") .. floor(st.pct * 100 + 0.5) .. T("% read") end
     c:rrect(pad, pill_y, bwid, pill_h, pill_h / 2, tone.btn)
     c:label(status, fpx(24), w / 2, pill_y + pill_h / 2,
         { bold = true, color = tone.btn_fg, anchor = "c", valign = "mid", max_w = bwid - px(30) })
@@ -1647,9 +1670,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.bookclub = {
-    does = "opens the pick tapped",
-    title = "Book club", tone = "ink", ratio = 0.27, ratio_narrow = 0.62,
-    summary = "This month's picks from your book club collection, and how many are read. Works offline.",
+    does = T("opens the pick tapped"),
+    title = T("Book club"), tone = "ink", ratio = 0.27, ratio_narrow = 0.62,
+    summary = T("This month's picks from your book club collection, and how many are read. Works offline."),
 }
 
 -- The collection that holds the club's books: the chosen one, else one named
@@ -1731,26 +1754,26 @@ function P.bookclub.build(env)
         st = P.bookclub.state(env)
     end
     if not st then
-        return emptyState(env, c, s, "Book club", "No book club collection yet",
-            "Make a collection called \xE2\x80\x9Cbookclub " .. os.date("%Y") .. "\xE2\x80\x9D and add your books to it.")
+        return emptyState(env, c, s, T("Book club"), T("No book club collection yet"),
+            T("Make a collection called \xE2\x80\x9Cbookclub ") .. os.date("%Y") .. T("\xE2\x80\x9D and add your books to it."))
     end
     local pad = px(36)
     local month = A.date("%B")
-    local title = env.cfg("title", "Book club")
-    if title == "" then title = "Book club" end
+    local title = env.cfg("title", T("Book club"))
+    if title == "" then title = T("Book club") end
 
     -- header: "BOOK CLUB · OCTOBER", and how long the month has left
     local t = os.date("*t")
     local last = os.date("*t", os.time{ year = t.year, month = t.month + 1, day = 0, hour = 12 }).day
     local left = last - t.day
-    local t_left = c:text(left == 0 and "Last day" or (A.plural(left, "day", "days") .. " left"), fpx(22), { bold = true, color = tone.muted })
+    local t_left = c:text(left == 0 and T("Last day") or (A.plural(left, "day", "days") .. T(" left")), fpx(22), { bold = true, color = tone.muted })
     local t_head = c:label(title .. "  \xC2\xB7  " .. month, fpx(22), pad, px(24),
         { bold = true, caps = true, color = tone.accent, max_w = w - 2 * pad - t_left.w - px(20) })
     c:put(t_left, w - pad, px(24) + t_head.base, "r", "base")
 
     -- along the bottom: one segment per book in the collection, filled for
     -- each one finished, with the count beside it
-    local t_count = c:text(st.done .. " of " .. st.total .. " read", fpx(22), { bold = true, color = tone.fg })
+    local t_count = c:text(st.done .. T(" of ") .. st.total .. T(" read"), fpx(22), { bold = true, color = tone.fg })
     local bar_h = max(5, px(16))
     local bar_y = h - px(24) - bar_h
     c:put(t_count, w - pad, bar_y + bar_h / 2, "r", "mid")
@@ -1785,9 +1808,9 @@ function P.bookclub.build(env)
     if n == 0 or area_h < px(60) then
         local line
         if st.total == 0 then
-            line = "Add your club's books to \xE2\x80\x9C" .. D.collectionLabel(st.coll) .. "\xE2\x80\x9D"
+            line = T("Add your club's books to \xE2\x80\x9C") .. D.collectionLabel(st.coll) .. "\xE2\x80\x9D"
         elseif n == 0 then
-            line = "Choose " .. month .. "'s books in Module settings"
+            line = T("Choose ") .. month .. T("'s books in Module settings")
         end
         if line and area_h >= px(30) then
             c:label(line, fpx(24), w / 2, top + area_h / 2, { anchor = "c", valign = "mid", color = tone.muted, max_w = bwid })
@@ -1810,7 +1833,7 @@ function P.bookclub.build(env)
             local tw = col_w - cover_w - px(20)
             -- bottom of the column: status over a small progress bar
             local mb_h = max(4, px(9))
-            local status = b.finished and "Finished" or (b.pct > 0 and string.format("%d%%", floor(b.pct * 100 + 0.5)) or "Not started")
+            local status = b.finished and T("Finished") or (b.pct > 0 and string.format("%d%%", floor(b.pct * 100 + 0.5)) or T("Not started"))
             local t_status = c:text(status, fpx(22), { bold = true, max_w = tw,
                 color = (b.finished and tone.accent) or (b.pct > 0 and tone.fg) or tone.muted })
             -- the words run the cover's height, so a short cover (a narrow
@@ -1850,9 +1873,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.week_rings = {
-    does = "opens the reading calendar",
-    title = "Week rings", tone = "plum", ratio = 0.61, ratio_narrow = 0.61,
-    summary = "Pages and minutes rings for each day this week, with daily averages. Needs the statistics plugin.",
+    does = T("opens the reading calendar"),
+    title = T("Week rings"), tone = "plum", ratio = 0.61, ratio_narrow = 0.61,
+    summary = T("Pages and minutes rings for each day this week, with daily averages. Needs the statistics plugin."),
 }
 
 function P.week_rings.build(env)
@@ -1862,8 +1885,8 @@ function P.week_rings.build(env)
     local c = card(env, s)
     local st = statsFor(env)
     if st == false then
-        return emptyState(env, c, s, "This week", "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, T("This week"), T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(28)
     local cols = tone.series
@@ -1872,7 +1895,7 @@ function P.week_rings.build(env)
     local min_goal = D.dailyMinutesGoal()
     local week = st and st.week or {}
 
-    local t_head = c:label("This week", fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
+    local t_head = c:label(T("This week"), fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
     if st then
         local total = A.plural(st.week_pages, "page", "pages") .. "  \xC2\xB7  " .. A.fmtMinutes(st.week_secs / 60)
         local t_total = c:text(total, fpx(21), { bold = true, color = tone.muted })
@@ -1895,8 +1918,8 @@ function P.week_rings.build(env)
         { bold = true, color = cols[1], max_w = half - px(8) })
     local t_v2 = c:text(avg_mins and A.fmtMinutes(avg_mins) or "\xE2\x80\xA6", fpx(27),
         { bold = true, color = cols[2], max_w = half - px(8) })
-    local t_c1 = c:text("a day on average", fpx(18), { bold = true, color = tone.muted, max_w = half - px(8) })
-    local t_c2 = c:text("a day on average", fpx(18), { bold = true, color = tone.muted, max_w = half - px(8) })
+    local t_c1 = c:text(T("a day on average"), fpx(18), { bold = true, color = tone.muted, max_w = half - px(8) })
+    local t_c2 = c:text(T("a day on average"), fpx(18), { bold = true, color = tone.muted, max_w = half - px(8) })
     local tighten = round(t_v1.h * 0.12)
     local stats_y = h - px(18) - (t_v1.h + t_c1.h - tighten)
     c:put(t_v1, pad, stats_y)
@@ -1946,9 +1969,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.month_rings = {
-    does = "opens the reading calendar",
-    title = "Month rings", tone = "plum", ratio = 0.82, ratio_narrow = 0.9,
-    summary = "Pages and minutes rings for each day this month, laid out as a calendar. Needs the statistics plugin.",
+    does = T("opens the reading calendar"),
+    title = T("Month rings"), tone = "plum", ratio = 0.82, ratio_narrow = 0.9,
+    summary = T("Pages and minutes rings for each day this month, laid out as a calendar. Needs the statistics plugin."),
 }
 
 function P.month_rings.build(env)
@@ -1963,8 +1986,8 @@ function P.month_rings.build(env)
     if env.sample then year, month, current = now.year, now.month, true end
     local month_name = A.monthTitle(year, month)
     if st == false then
-        return emptyState(env, c, s, month_name, "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, month_name, T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(28)
     local cols = tone.series
@@ -2021,7 +2044,7 @@ function P.month_rings.build(env)
             end
             return true
         end
-        local _ = try({ { v_pages, cols[1] }, { v_time, cols[2] }, { "a day", tone.muted, fpx(19) } })
+        local _ = try({ { v_pages, cols[1] }, { v_time, cols[2] }, { T("a day"), tone.muted, fpx(19) } })
             or try({ { v_pages, cols[1] }, { v_time, cols[2] } })
             or try({ { v_pages, cols[1] } })
     end
@@ -2089,12 +2112,13 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.year_chart = {
-    does = "lists a month's books",
-    title = "Books and pages", tone = "ink", ratio = 0.4, ratio_narrow = 0.62,
-    summary = "Books finished and pages read each month this year, as two lines. Tap a month for its books.",
+    does = T("lists a month's books"),
+    title = T("Books and pages"), tone = "ink", ratio = 0.4, ratio_narrow = 0.62,
+    summary = T("Books finished and pages read each month this year, as two lines. Tap a month for its books."),
 }
 
-local MONTH_LETTERS = { "J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D" }
+local MONTH_LETTERS = {}
+for month = 1, 12 do MONTH_LETTERS[month] = monthLetter(month) end
 
 -- A step for an axis with four divisions that reaches `top`: 1, 2, 2.5 or 5
 -- times a power of ten.
@@ -2201,7 +2225,7 @@ function P.year_chart.build(env)
 
     local pad = px(28)
     -- header: what it is on the left, the year's totals as a legend on the right
-    local t_head = c:label("Books and pages", fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
+    local t_head = c:label(T("Books and pages"), fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
     local dot_r = max(3, px(7))
     local function legend(parts)
         local items, width = {}, 0
@@ -2213,7 +2237,7 @@ function P.year_chart.build(env)
         return items, width + px(18) * (#items - 1)
     end
     local parts = { { A.plural(total_b, "book", "books"), cols[1] } }
-    if have_pages then parts[2] = { A.thousands(total_p) .. " pages", cols[2] } end
+    if have_pages then parts[2] = { A.thousands(total_p) .. T(" pages"), cols[2] } end
     local items, lw_total = legend(parts)
     if pad + t_head.w + px(24) + lw_total > w - pad then
         -- too long beside the title: numbers only
@@ -2317,9 +2341,9 @@ function A.listFinished(env, y, m)
     local list = D.finishedIn(nil, y, m) or {}
     local month_name = A.monthTitle(y, m)
     local S = A.S
-    S.open(env.ctx, "Finished in " .. month_name, function(api)
+    S.open(env.ctx, T("Finished in ") .. month_name, function(api)
         local rows = {}
-        if #list == 0 then rows[1] = S.header("No books finished in " .. month_name) end
+        if #list == 0 then rows[1] = S.header(T("No books finished in ") .. month_name) end
         for _, it in ipairs(list) do
             local label = A.safe(it.title or it.fp:match("([^/]+)$") or "?")
             if it.author and it.author ~= "" then label = label .. "  \xC2\xB7  " .. A.safe(it.author) end
@@ -2346,7 +2370,7 @@ end
 -- 2.5 -> "2.5", 3 -> "3"
 local function figure(v)
     if v == floor(v) then return A.thousands(v) end
-    return string.format("%.1f", v)
+    return A.decimal(v)
 end
 
 -- A dashed line from x0 to x1 at y.
@@ -2499,9 +2523,9 @@ end
 -- ─── Time read, month by month ──────────────────────────────────────────────
 
 P.year_time = {
-    does = "lists a month's books",
-    title = "Time read by month", tone = "ink", ratio = 0.62, ratio_narrow = 0.75,
-    summary = "Hours read each month this year, as bars. Tap a month for its books. Needs the statistics plugin.",
+    does = T("lists a month's books"),
+    title = T("Time read by month"), tone = "ink", ratio = 0.62, ratio_narrow = 0.75,
+    summary = T("Hours read each month this year, as bars. Tap a month for its books. Needs the statistics plugin."),
 }
 
 local SAMPLE_MONTH_SECS = { 0, 0, 0, 0, 30600, 52200, 77400, 64800, 61200, 23400, 0, 0 }
@@ -2519,13 +2543,13 @@ function P.year_time.build(env)
     else
         local st = statsFor(env)
         if st == false then
-            return emptyState(env, c, s, "Time read", "No reading statistics",
-                "Turn on KOReader's Reading statistics plugin.")
+            return emptyState(env, c, s, T("Time read"), T("No reading statistics"),
+                T("Turn on KOReader's Reading statistics plugin."))
         end
         for m = 1, 12 do secs[m] = st and st.month_secs and st.month_secs[m] or 0 end
     end
     local pad = px(28)
-    local t_head = c:label("Time read", fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
+    local t_head = c:label(T("Time read"), fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
     local total = 0
     for m = 1, cur do total = total + secs[m] end
     local base = px(22) + t_head.base
@@ -2560,9 +2584,9 @@ function P.year_time.tap(env, region) return P.year_chart.tap(env, region) end
 -- ─── Pages (or time) read each day this month ───────────────────────────────
 
 P.month_chart = {
-    does = "opens the reading calendar",
-    title = "Pages per day", tone = "ink", ratio = 0.4, ratio_narrow = 0.62,
-    summary = "Pages (or time) read each day this month, as bars, with your daily average. Needs the statistics plugin.",
+    does = T("opens the reading calendar"),
+    title = T("Pages per day"), tone = "ink", ratio = 0.4, ratio_narrow = 0.62,
+    summary = T("Pages (or time) read each day this month, as bars, with your daily average. Needs the statistics plugin."),
 }
 
 function P.month_chart.build(env)
@@ -2580,8 +2604,8 @@ function P.month_chart.build(env)
     local today = current and now.day or n_days
     local st = statsFor(env)
     if st == false then
-        return emptyState(env, c, s, by_time and "Time per day" or "Pages per day", "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, by_time and T("Time per day") or T("Pages per day"), T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local values, total = {}, 0
     for d = 1, n_days do
@@ -2601,11 +2625,11 @@ function P.month_chart.build(env)
     local avg = total / max(1, today)
 
     local pad = px(28)
-    local t_head = c:label(by_time and "Time per day" or "Pages per day", fpx(22), pad, px(22),
+    local t_head = c:label(by_time and T("Time per day") or T("Pages per day"), fpx(22), pad, px(22),
         { bold = true, caps = true, color = tone.accent })
     local base = px(22) + t_head.base
     local tot_txt = by_time and A.fmtMinutes(total) or A.plural(floor(total + 0.5), "page", "pages")
-    local avg_txt = "average " .. (by_time and A.fmtMinutes(avg) or A.thousands(avg))
+    local avg_txt = T("average ") .. (by_time and A.fmtMinutes(avg) or A.thousands(avg))
     local left_edge = pad + t_head.w + px(20)
     if st then
         if not headerRight(c, tone, fpx, { { A.monthTitle(year, month), "muted" }, { tot_txt } }, w - pad, base, left_edge) then
@@ -2646,9 +2670,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.month_totals = {
-    does = "lists this month's books",
-    title = "Month totals", tone = "ink", ratio = 0.82, ratio_narrow = 0.9,
-    summary = "Books finished, time spent reading and pages read this month. Needs the statistics plugin.",
+    does = T("lists this month's books"),
+    title = T("Month totals"), tone = "ink", ratio = 0.82, ratio_narrow = 0.9,
+    summary = T("Books finished, time spent reading and pages read this month. Needs the statistics plugin."),
 }
 
 function P.month_totals.build(env)
@@ -2679,20 +2703,20 @@ function P.month_totals.build(env)
     local month_name = A.monthTitle(year, month)
     local t_head = c:label(month_name, fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
     -- (on the Dashboard the page heading already says which day it is)
-    local t_day = c:text(current and ("day " .. now.day .. " of " .. n_days) or A.plural(n_days, "day", "days"),
+    local t_day = c:text(current and (T("day ") .. now.day .. T(" of ") .. n_days) or A.plural(n_days, "day", "days"),
         fpx(21), { bold = true, color = tone.muted })
     if not env.nested and pad + t_head.w + px(16) + t_day.w <= w - pad then
         c:put(t_day, w - pad, px(24) + t_head.base, "r", "base")
     end
     local dots = "\xE2\x80\xA6"
-    local stats_off = "turn on Reading statistics"
+    local stats_off = T("turn on Reading statistics")
     local blocks = {
-        { value = books and tostring(books) or dots, label = (books == 1) and "book finished" or "books finished",
+        { value = books and tostring(books) or dots, label = (books == 1) and T("book finished") or T("books finished"),
           col = tone.fg, region = "books" },
         { value = secs == false and "\xE2\x80\x94" or (secs and A.fmtMinutes(secs / 60) or dots),
-          label = secs == false and stats_off or "spent reading", col = tone.accent2 },
+          label = secs == false and stats_off or T("spent reading"), col = tone.accent2 },
         { value = pages == false and "\xE2\x80\x94" or (pages and A.thousands(pages) or dots),
-          label = pages == false and stats_off or ((pages == 1) and "page read" or "pages read"), col = tone.accent },
+          label = pages == false and stats_off or ((pages == 1) and T("page read") or T("pages read")), col = tone.accent },
     }
     local top = px(24) + t_head.h + px(14)
     local bottom = h - px(22)
@@ -2749,17 +2773,17 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.when_read = {
-    does = "nothing",
-    title = "When you read", tone = "ink", ratio = 0.62, ratio_narrow = 0.75,
-    summary = "Which hours of the day you read in, over the month the Monthly page shows. Needs the statistics plugin.",
+    does = T("nothing"),
+    title = T("When you read"), tone = "ink", ratio = 0.62, ratio_narrow = 0.75,
+    summary = T("Which hours of the day you read in, over the month the Monthly page shows. Needs the statistics plugin."),
 }
 
 -- the four parts of the day, by starting hour
 local DAY_PARTS = {
-    { name = "Morning",   many = "Mornings",   from = 5,  to = 11 },
-    { name = "Afternoon", many = "Afternoons", from = 12, to = 16 },
-    { name = "Evening",   many = "Evenings",   from = 17, to = 20 },
-    { name = "Night",     many = "Nights",     from = 21, to = 28 }, -- through 4 am
+    { name = T("Morning"),   many = T("Mornings"),   from = 5,  to = 11 },
+    { name = T("Afternoon"), many = T("Afternoons"), from = 12, to = 16 },
+    { name = T("Evening"),   many = T("Evenings"),   from = 17, to = 20 },
+    { name = T("Night"),     many = T("Nights"),     from = 21, to = 28 }, -- through 4 am
 }
 local function partOf(hr)
     for i, p in ipairs(DAY_PARTS) do
@@ -2792,14 +2816,14 @@ function P.when_read.build(env)
     else
         local st = statsFor(env)
         if st == false then
-            return emptyState(env, c, s, "When you read", "No reading statistics",
-                "Turn on KOReader's Reading statistics plugin.")
+            return emptyState(env, c, s, T("When you read"), T("No reading statistics"),
+                T("Turn on KOReader's Reading statistics plugin."))
         end
         local src = st and D.monthStats(st, vy, vm).hours
         for hr = 0, 23 do hours[hr] = src and src[hr] or 0 end
     end
     local pad = px(28)
-    local t_head = c:label("When you read", fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
+    local t_head = c:label(T("When you read"), fpx(22), pad, px(22), { bold = true, caps = true, color = tone.accent })
     local span = A.monthTitle(vy, vm)
     local t_span = c:text(span, fpx(21), { bold = true, color = tone.muted })
     if pad + t_head.w + px(16) + t_span.w <= w - pad then
@@ -2815,7 +2839,7 @@ function P.when_read.build(env)
     end
     local top = px(22) + t_head.h + px(16)
     if total <= 0 then
-        local msg = "No reading in " .. span
+        local msg = T("No reading in ") .. span
         c:label(msg, fpx(24), w / 2, top + (h - top) / 2, { anchor = "c", valign = "mid", color = tone.muted, max_w = w - 2 * pad })
         return c
     end
@@ -2825,10 +2849,10 @@ function P.when_read.build(env)
 
     -- the headline: "Evenings", "41% of your reading · most at 9 pm"
     local t_big = c:text(DAY_PARTS[peak_part].many, fpx(40), { bold = true, color = tone.fg, max_w = w - 2 * pad })
-    local sub = share .. "% of your reading  \xC2\xB7  most at " .. hourName(peak_hr)
+    local sub = share .. T("% of your reading  \xC2\xB7  most at ") .. hourName(peak_hr)
     local t_sub = c:text(sub, fpx(21), { bold = true, color = tone.muted })
     if t_sub.w > w - 2 * pad then
-        t_sub = c:text(share .. "% of your reading", fpx(21), { bold = true, color = tone.muted, max_w = w - 2 * pad })
+        t_sub = c:text(share .. T("% of your reading"), fpx(21), { bold = true, color = tone.muted, max_w = w - 2 * pad })
     end
     local tight = round(t_big.h * 0.12)
     c:put(t_big, pad - round(t_big.px * 0.03), top - tight)
@@ -2842,7 +2866,7 @@ function P.when_read.build(env)
     local parts_h = t_pn.h + t_pv.h
     local bottom = h - px(20)
     -- (only when every name fits its quarter of the width)
-    local widest_part = c:text("Afternoon", fpx(19), { bold = true }).w
+    local widest_part = c:text(T("Afternoon"), fpx(19), { bold = true }).w
     local show_parts = (bottom - y) - parts_h - px(14) >= px(70) and widest_part <= (w - 2 * pad) / 4 - px(6)
     local hist_bottom = show_parts and (bottom - parts_h - px(14)) or bottom
 
@@ -2913,7 +2937,7 @@ function P.heading(env, kicker, title, nav)
         x = x - gap - bs
         btn.prev = { x = x, w = bs }
         if nav.today then
-            local t_today = c:text("Today", fpx(30), { bold = true })
+            local t_today = c:text(T("Today"), fpx(30), { bold = true })
             local tw = t_today.w + floor(bs * 0.7)
             x = x - floor(gap * 1.6) - tw
             btn.now = { x = x, w = tw }
@@ -2921,13 +2945,20 @@ function P.heading(env, kicker, title, nav)
         btn.bs = bs
         room = x - px(24)
     end
+    local inset, inset_y = 0, 0
+    if env.see then inset, inset_y = platePad(px); room = room - 2 * inset end
     local t_k = kicker and c:text(kicker, fpx(24), { bold = true, caps = true, color = accent, max_w = room }) or nil
     local t_t = c:text(title, fpx(74), { bold = true, color = fg, max_w = room })
     local tight = round(t_t.h * 0.14)
     local total = (t_k and t_k.h or 0) + t_t.h - tight
     local y = floor((h - total) / 2)
-    if t_k then c:put(t_k, 0, y); y = y + t_k.h - tight end
-    c:put(t_t, -round(t_t.px * 0.03), y)
+    if env.see then
+        local pw = max(t_k and t_k.w or 0, t_t.w) + 2 * inset
+        local ph = min(h, total + 2 * inset_y)
+        plate(c, 0, floor((h - ph) / 2), pw, ph, px)
+    end
+    if t_k then c:put(t_k, inset, y); y = y + t_k.h - tight end
+    c:put(t_t, inset - round(t_t.px * 0.03), y)
     if nav then
         local bs = btn.bs
         local by = floor((h - bs) / 2)
@@ -2955,7 +2986,7 @@ function P.heading(env, kicker, title, nav)
             local ph = floor(bs * 0.78)
             local py = floor((h - ph) / 2)
             c:rrect(btn.now.x, py, btn.now.w, ph, ph / 2, fill, bg)
-            c:label("Today", fpx(30), btn.now.x + btn.now.w / 2, py + ph / 2,
+            c:label(T("Today"), fpx(30), btn.now.x + btn.now.w / 2, py + ph / 2,
                 { bold = true, anchor = "c", valign = "mid", color = on_fill })
             c:region("now", btn.now.x, by, btn.now.w, bs, px(12))
         end
@@ -2968,26 +2999,26 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.trends = {
-    does = "opens the reading progress view",
-    title = "Reading trends", tone = "ink", ratio = 0.6, ratio_narrow = 1.15,
-    summary = "Your last 90 days against your year, like the trends in Apple's Fitness app. Needs the statistics plugin.",
+    does = T("opens the reading progress view"),
+    title = T("Reading trends"), tone = "ink", ratio = 0.6, ratio_narrow = 1.15,
+    summary = T("Your last 90 days against your year, like the trends in Apple's Fitness app. Needs the statistics plugin."),
 }
 
 local TREND_GROUPS = {
-    { id = "keep", title = "Keep it going" },
-    { id = "look", title = "Worth a look" },
-    { id = "more", title = "Needs more data" },
+    { id = "keep", title = T("Keep it going") },
+    { id = "look", title = T("Worth a look") },
+    { id = "more", title = T("Needs more data") },
 }
 
 local SAMPLE_TRENDS = {
-    { id = "time", name = "Time read", unit = "min/day", recent = 107, base = 92, group = "keep" },
-    { id = "pages", name = "Pages", unit = "pages/day", recent = 312, base = 268, group = "keep" },
-    { id = "days", name = "Reading days", unit = "days/week", recent = 6.4, base = 5.9, group = "keep" },
-    { id = "books", name = "Books finished", unit = "books/month", recent = 4.3, base = 3.6, group = "keep" },
-    { id = "session", name = "Session length", unit = "min/session", recent = 24, base = 31, group = "look",
-      hint = "Your sittings are shorter lately. One long read a week helps." },
-    { id = "speed", name = "Reading speed", unit = "pages/hr", recent = 68, base = 74, group = "look",
-      hint = "Slower pages can just mean a denser book." },
+    { id = "time", name = T("Time read"), unit = T("min/day"), recent = 107, base = 92, group = "keep" },
+    { id = "pages", name = T("Pages"), unit = T("pages/day"), recent = 312, base = 268, group = "keep" },
+    { id = "days", name = T("Reading days"), unit = T("days/week"), recent = 6.4, base = 5.9, group = "keep" },
+    { id = "books", name = T("Books finished"), unit = T("books/month"), recent = 4.3, base = 3.6, group = "keep" },
+    { id = "session", name = T("Session length"), unit = T("min/session"), recent = 24, base = 31, group = "look",
+      hint = T("Your sittings are shorter lately. One long read a week helps.") },
+    { id = "speed", name = T("Reading speed"), unit = T("pages/hr"), recent = 68, base = 74, group = "look",
+      hint = T("Slower pages can just mean a denser book.") },
 }
 
 -- Six colours that read apart on colour e-ink, starting from the card's lead
@@ -3006,7 +3037,7 @@ end
 
 local function trendValue(item, v)
     if v == nil then return "\xE2\x80\x93" end
-    if item.id == "days" or item.id == "books" then return string.format("%.1f", v) end
+    if item.id == "days" or item.id == "books" then return A.decimal(v) end
     return A.thousands(floor(v + 0.5))
 end
 
@@ -3032,12 +3063,12 @@ function P.trends.build(env)
     local list
     if env.sample then list = SAMPLE_TRENDS else list = D.trends(env.refresh) end
     if list == false then
-        return emptyState(env, c, s, "Reading trends", "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, T("Reading trends"), T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(36)
-    local t_head = c:label("Trends", fpx(22), pad, px(26), { bold = true, caps = true, color = tone.accent })
-    local t_sub = c:text("Last 90 days vs your year", fpx(20), { bold = true, color = tone.label })
+    local t_head = c:label(T("Trends"), fpx(22), pad, px(26), { bold = true, caps = true, color = tone.accent })
+    local t_sub = c:text(T("Last 90 days vs your year"), fpx(20), { bold = true, color = tone.label })
     if pad + t_head.w + px(24) + t_sub.w <= w - pad then c:put(t_sub, w - pad, px(26) + t_head.base, "r", "base") end
     if not list then
         c:label("\xE2\x80\xA6", fpx(30), w / 2, h / 2, { anchor = "c", valign = "mid", color = tone.muted })
@@ -3057,7 +3088,7 @@ function P.trends.build(env)
     local W, H = w - 2 * pad, h - top - px(24)
     local gap = max(4, px(14))
     local ncol = (W >= 2 * A.screen():scaleBySize(140)) and 2 or 1
-    local t_sec = c:text("Keep", fpx(26), { bold = true })
+    local t_sec = c:text(T("Keep"), fpx(26), { bold = true })
     local sec_h = t_sec.h + px(4)
     local hint_size = fpx(19)
     local t_hint = c:text("Ag", hint_size, {})
@@ -3173,7 +3204,7 @@ function P.trends.build(env)
             c:put(t_unit, tx + t_val.w + px(5), base_y, "l", "base")
             -- the year's figure, when there is room for it
             if it.base and it.group ~= "more" then
-                local t_year = c:text("year " .. trendValue(it, it.base), fpx(19 * k), { bold = true, color = tone.label })
+                local t_year = c:text(T("year ") .. trendValue(it, it.base), fpx(19 * k), { bold = true, color = tone.label })
                 local ex = tx + t_val.w + px(5) + t_unit.w + px(16)
                 if ex + t_year.w <= x + tw - px(14) then c:put(t_year, x + tw - px(14), base_y, "r", "base") end
             end
@@ -3197,9 +3228,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.challenge = {
-    does = "opens the reading calendar",
-    title = "Monthly challenge", tone = "ink", ratio = 0.61, ratio_narrow = 0.61,
-    summary = "One goal for the month, picked from your last three months or set by you. Needs the statistics plugin.",
+    does = T("opens the reading calendar"),
+    title = T("Monthly challenge"), tone = "ink", ratio = 0.61, ratio_narrow = 0.61,
+    summary = T("One goal for the month, picked from your last three months or set by you. Needs the statistics plugin."),
 }
 
 local SAMPLE_CHALLENGE = {
@@ -3209,32 +3240,32 @@ local SAMPLE_CHALLENGE = {
 
 local function challengeGoal(ch)
     if ch.metric == "minutes" then
-        if ch.target >= 120 then return "Read " .. figure(floor(ch.target / 6 + 0.5) / 10) .. " hours" end
-        return "Read " .. ch.target .. " minutes"
+        if ch.target >= 120 then return T("Read ") .. figure(floor(ch.target / 6 + 0.5) / 10) .. T(" hours") end
+        return T("Read ") .. ch.target .. T(" minutes")
     end
-    if ch.metric == "days" then return "Read on " .. ch.target .. " days" end
-    return "Read " .. A.thousands(ch.target) .. " pages"
+    if ch.metric == "days" then return T("Read on ") .. ch.target .. T(" days") end
+    return T("Read ") .. A.thousands(ch.target) .. T(" pages")
 end
 
 local function challengeDone(ch)
-    if ch.metric == "minutes" then return hoursText(ch.done * 60) .. " of " .. hoursText(ch.target * 60) end
-    if ch.metric == "days" then return ch.done .. " of " .. ch.target .. " days" end
-    return A.thousands(ch.done) .. " of " .. A.thousands(ch.target)
+    if ch.metric == "minutes" then return hoursText(ch.done * 60) .. T(" of ") .. hoursText(ch.target * 60) end
+    if ch.metric == "days" then return ch.done .. T(" of ") .. ch.target .. T(" days") end
+    return A.thousands(ch.done) .. T(" of ") .. A.thousands(ch.target)
 end
 
 local function challengeNeed(ch)
     if ch.complete then
         local over = ch.done - ch.target
-        if over <= 0 then return "Challenge complete!" end
-        if ch.metric == "minutes" then return "Done, " .. hoursText(over * 60) .. " over" end
-        if ch.metric == "days" then return "Done, " .. A.plural(over, "day", "days") .. " over" end
-        return "Done, " .. A.thousands(over) .. " over"
+        if over <= 0 then return T("Challenge complete!") end
+        if ch.metric == "minutes" then return T("Done, ") .. hoursText(over * 60) .. T(" over") end
+        if ch.metric == "days" then return T("Done, ") .. A.plural(over, "day", "days") .. T(" over") end
+        return T("Done, ") .. A.thousands(over) .. T(" over")
     end
     if ch.metric == "days" then
-        return "Read on " .. ch.remaining .. " of the " .. (ch.left_days + 1) .. " days left"
+        return T("Read on ") .. ch.remaining .. T(" of the ") .. (ch.left_days + 1) .. T(" days left")
     end
-    if ch.metric == "minutes" then return A.fmtMinutes(math.ceil(ch.per_day)) .. " a day to go" end
-    return A.plural(math.ceil(ch.per_day), "page", "pages") .. " a day to go"
+    if ch.metric == "minutes" then return A.fmtMinutes(math.ceil(ch.per_day)) .. T(" a day to go") end
+    return A.plural(math.ceil(ch.per_day), "page", "pages") .. T(" a day to go")
 end
 
 function P.challenge.build(env)
@@ -3249,17 +3280,17 @@ function P.challenge.build(env)
         ch = D.challenge(env.refresh, env.cfg("metric", "auto"), tonumber(env.cfg("target", nil)))
     end
     if ch == false then
-        return emptyState(env, c, s, "Monthly challenge", "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, T("Monthly challenge"), T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(30)
     local month = A.date("%B")
-    local t_label = c:label(month .. " challenge", fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
+    local t_label = c:label(month .. T(" challenge"), fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
     if not ch then
         c:label("\xE2\x80\xA6", fpx(30), w / 2, h / 2, { anchor = "c", valign = "mid", color = tone.muted })
         return c
     end
-    local right = ch.complete and "Done" or (ch.left_days == 0 and "Last day" or (A.plural(ch.left_days, "day", "days") .. " left"))
+    local right = ch.complete and T("Done") or (ch.left_days == 0 and T("Last day") or (A.plural(ch.left_days, "day", "days") .. T(" left")))
     local t_right = c:text(right, fpx(22), { bold = true, color = tone.label })
     if pad + t_label.w + px(16) + t_right.w <= w - pad then c:put(t_right, w - pad, px(24) + t_label.base, "r", "base") end
 
@@ -3280,7 +3311,7 @@ function P.challenge.build(env)
         { challengeDone(ch), 24, col, true },
         { challengeNeed(ch), 21, ch.complete and col or tone.muted, true },
     }
-    local status = (not ch.complete) and (ch.on_pace and "On pace" or "Behind pace") or nil
+    local status = (not ch.complete) and (ch.on_pace and T("On pace") or T("Behind pace")) or nil
     local size_k = 1
     local texts
     for _ = 1, 4 do
@@ -3372,16 +3403,16 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.forecast = {
-    does = "opens the book tapped",
-    title = "Finish forecast", tone = "ink", ratio = 0.61, ratio_narrow = 0.61,
-    summary = "When you'll finish the books you're reading at your recent pace, and where your year is heading.",
+    does = T("opens the book tapped"),
+    title = T("Finish forecast"), tone = "ink", ratio = 0.61, ratio_narrow = 0.61,
+    summary = T("When you'll finish the books you're reading at your recent pace, and where your year is heading."),
 }
 
 local function whenText(fc)
-    if not fc then return "\xE2\x80\x93", "Read a little to get a forecast" end
-    if fc.days <= 0 then return "Today", "at your pace" end
-    if fc.days == 1 then return "Tomorrow", "at your pace" end
-    return A.date("%b", fc.when) .. " " .. tonumber(os.date("%d", fc.when)), "in " .. fc.days .. " days"
+    if not fc then return "\xE2\x80\x93", T("Read a little to get a forecast") end
+    if fc.days <= 0 then return T("Today"), T("at your pace") end
+    if fc.days == 1 then return T("Tomorrow"), T("at your pace") end
+    return A.date("%b", fc.when) .. " " .. tonumber(os.date("%d", fc.when)), T("in ") .. fc.days .. T(" days")
 end
 
 function P.forecast.build(env)
@@ -3401,25 +3432,25 @@ function P.forecast.build(env)
         pace = D.yearPace(D.year(env.refresh))
     end
     if #books == 0 then
-        return emptyState(env, c, s, "Finish forecast", "Nothing in progress",
-            "Open a book and its finish date shows here.")
+        return emptyState(env, c, s, T("Finish forecast"), T("Nothing in progress"),
+            T("Open a book and its finish date shows here."))
     end
     local pad = px(30)
-    local t_label = c:label("Finish forecast", fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
+    local t_label = c:label(T("Finish forecast"), fpx(22), pad, px(24), { bold = true, caps = true, color = tone.accent })
     if avg.secs > 0 then
-        local t_rate = c:text("at " .. A.fmtMinutes(avg.secs / 60) .. " a day", fpx(20), { bold = true, color = tone.label })
+        local t_rate = c:text(T("at ") .. A.fmtMinutes(avg.secs / 60) .. T(" a day"), fpx(20), { bold = true, color = tone.label })
         if pad + t_label.w + px(16) + t_rate.w <= w - pad then c:put(t_rate, w - pad, px(24) + t_label.base, "r", "base") end
     end
     local top = px(24) + t_label.h + px(12)
     -- the year's pace along the bottom
     local foot_h = 0
     if pace and pace.projected then
-        local txt = "On pace for " .. A.plural(pace.projected, "book", "books") .. " this year"
+        local txt = T("On pace for ") .. A.plural(pace.projected, "book", "books") .. T(" this year")
         local t_f = c:text(txt, fpx(21), { bold = true, color = tone.fg, max_w = w - 2 * pad })
         foot_h = t_f.h + px(14)
         c:put(t_f, pad, h - px(20) - t_f.h)
         if pace.goal and pace.projected >= pace.goal then
-            local t_g = c:text("goal " .. pace.goal, fpx(21), { bold = true, color = tone.accent2 })
+            local t_g = c:text(T("goal ") .. pace.goal, fpx(21), { bold = true, color = tone.accent2 })
             if pad + t_f.w + px(14) + t_g.w <= w - pad then c:put(t_g, w - pad, h - px(20) - t_f.h, "r") end
         end
     end
@@ -3496,9 +3527,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.control = {
-    does = "nothing (each button runs its own action)",
-    title = "Control centre", tone = "ink", ratio = 0.3, ratio_narrow = 0.62,
-    summary = "Buttons for any action you choose, with brightness and warmth. Works offline.",
+    does = T("nothing (each button runs its own action)"),
+    title = T("Control centre"), tone = "ink", ratio = 0.3, ratio_narrow = 0.62,
+    summary = T("Buttons for any action you choose, with brightness and warmth. Works offline."),
 }
 
 local G = {
@@ -3509,14 +3540,14 @@ local G = {
 A.GLYPH = G
 
 A.CONTROL_DEFAULTS = {
-    { label = "Wi-Fi", icon = G.wifi, action = { toggle_wifi = true } },
-    { label = "Night mode", icon = G.night, action = { night_mode = true } },
-    { label = "Light", icon = G.bulb, action = { toggle_frontlight = true } },
-    { label = "Rotate", icon = G.rotate, action = { toggle_rotation = true } },
-    { label = "Calendar", icon = G.calendar, action = { stats_calendar_view = true } },
-    { label = "Sleep", icon = G.sleep, action = { suspend = true } },
-    { label = "Search", icon = G.search, action = { file_search = true } },
-    { label = "Light settings", icon = G.sun, action = { show_frontlight_dialog = true } },
+    { label = T("Wi-Fi"), icon = G.wifi, action = { toggle_wifi = true } },
+    { label = T("Night mode"), icon = G.night, action = { night_mode = true } },
+    { label = T("Light"), icon = G.bulb, action = { toggle_frontlight = true } },
+    { label = T("Rotate"), icon = G.rotate, action = { toggle_rotation = true } },
+    { label = T("Calendar"), icon = G.calendar, action = { stats_calendar_view = true } },
+    { label = T("Sleep"), icon = G.sleep, action = { suspend = true } },
+    { label = T("Search"), icon = G.search, action = { file_search = true } },
+    { label = T("Light settings"), icon = G.sun, action = { show_frontlight_dialog = true } },
 }
 
 --- The buttons the card shows: what was set for each slot, else the default.
@@ -3724,16 +3755,16 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.compare = {
-    does = "opens the reading calendar",
-    title = "This week vs last", tone = "ink", ratio = 0.62, ratio_narrow = 0.75,
-    summary = "Your average a day this week against last week (or month, or year), like Apple Health. Needs the statistics plugin.",
+    does = T("opens the reading calendar"),
+    title = T("This week vs last"), tone = "ink", ratio = 0.62, ratio_narrow = 0.75,
+    summary = T("Your average a day this week against last week (or month, or year), like Apple Health. Needs the statistics plugin."),
 }
 
 local SAMPLE_COMPARE = {
-    time = { period = "week", metric = "time", this = 52, last = 41, dir = "up", label_this = "This week", label_last = "Last week",
-        sentence = "You're averaging more minutes a day this week than last week." },
-    pages = { period = "week", metric = "pages", this = 268, last = 301, dir = "down", label_this = "This week", label_last = "Last week",
-        sentence = "You're averaging fewer pages a day this week than last week." },
+    time = { period = "week", metric = "time", this = 52, last = 41, dir = "up", label_this = T("This week"), label_last = T("Last week"),
+        sentence = T("You're averaging more minutes a day this week than last week.") },
+    pages = { period = "week", metric = "pages", this = 268, last = 301, dir = "down", label_this = T("This week"), label_last = T("Last week"),
+        sentence = T("You're averaging fewer pages a day this week than last week.") },
 }
 
 local function compareData(env, metric)
@@ -3750,12 +3781,12 @@ end
 -- period. Returns the height used.
 local function compareBlock(c, cmp, x, y, w, h, px, fpx, tone, compact)
     local col = cmp.metric == "pages" and tone.series[1] or tone.series[2]
-    local unit = cmp.metric == "pages" and "pages/day" or "min/day"
+    local unit = cmp.metric == "pages" and T("pages/day") or T("min/day")
     local yy = y
     if not compact then
         local glyph = cmp.metric == "pages" and "\xEE\x9E\xBD" or "\xEE\xB0\x9A"
         local t_icon = c:text(glyph, fpx(30), { symbol = true, color = col })
-        local t_title = c:text(cmp.metric == "pages" and "Pages" or "Time read", fpx(28), { bold = true, color = col })
+        local t_title = c:text(cmp.metric == "pages" and T("Pages") or T("Time read"), fpx(28), { bold = true, color = col })
         c:put(t_icon, x, yy + t_title.h / 2, "l", "mid")
         c:put(t_title, x + t_icon.w + px(10), yy)
         yy = yy + t_title.h + px(8)
@@ -3812,8 +3843,8 @@ function P.compare.build(env)
     local metrics = which == "both" and { "time", "pages" } or { which == "pages" and "pages" or "time" }
     local first = compareData(env, metrics[1])
     if first == false then
-        return emptyState(env, c, s, "This week vs last", "No reading statistics",
-            "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, T("This week vs last"), T("No reading statistics"),
+            T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(34)
     if not first then
@@ -3853,9 +3884,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 
 P.library = {
-    does = "nothing",
-    title = "Library stats", tone = "ink", ratio = 0.36, ratio_narrow = 0.6,
-    summary = "How many books you own, have read, are reading and haven't started.",
+    does = T("nothing"),
+    title = T("Library stats"), tone = "ink", ratio = 0.36, ratio_narrow = 0.6,
+    summary = T("How many books you own, have read, are reading and haven't started."),
 }
 
 local SAMPLE_LIBRARY = { total = 412, counts = { finished = 168, reading = 4, on_hold = 6, unread = 234 } }
@@ -3863,10 +3894,10 @@ local SAMPLE_LIBRARY = { total = 412, counts = { finished = 168, reading = 4, on
 -- The four parts of the library, in the order they are drawn.
 local function libraryParts(tone, counts)
     local parts = {
-        { key = "finished", label = "Read", n = counts.finished or 0, col = tone.series[1] },
-        { key = "reading", label = "Reading", n = counts.reading or 0, col = tone.series[2] },
-        { key = "on_hold", label = "On hold", n = counts.on_hold or 0, col = tone.label },
-        { key = "unread", label = "Not started", n = counts.unread or 0, col = tone.track },
+        { key = "finished", label = T("Read"), n = counts.finished or 0, col = tone.series[1] },
+        { key = "reading", label = T("Reading"), n = counts.reading or 0, col = tone.series[2] },
+        { key = "on_hold", label = T("On hold"), n = counts.on_hold or 0, col = tone.label },
+        { key = "unread", label = T("Not started"), n = counts.unread or 0, col = tone.track },
     }
     if parts[3].n == 0 then table.remove(parts, 3) end
     return parts
@@ -3894,23 +3925,23 @@ function P.library.build(env)
     local c = card(env, s)
     local lib = env.sample and SAMPLE_LIBRARY or D.library(env.refresh)
     if lib == false then
-        return emptyState(env, c, s, "Library", "No library found", "Set a home folder in KOReader's file browser.")
+        return emptyState(env, c, s, T("Library"), T("No library found"), T("Set a home folder in KOReader's file browser."))
     end
     local pad = px(38)
     local W = w - 2 * pad
-    local t_head = c:label("Library", fpx(24), pad, pad, { bold = true, caps = true, color = tone.accent, max_w = W * 0.6 })
+    local t_head = c:label(T("Library"), fpx(24), pad, pad, { bold = true, caps = true, color = tone.accent, max_w = W * 0.6 })
     if not lib then
-        c:label("Counting your books\xE2\x80\xA6", fpx(26), w / 2, h / 2, { anchor = "c", valign = "mid", color = tone.muted })
+        c:label(T("Counting your books\xE2\x80\xA6"), fpx(26), w / 2, h / 2, { anchor = "c", valign = "mid", color = tone.muted })
         return c
     end
     local total = lib.total or 0
     local parts = libraryParts(tone, lib.counts)
     local read_pct = total > 0 and floor((lib.counts.finished or 0) * 100 / total + 0.5) or 0
-    local t_tot = c:text(A.thousands(total) .. " books  \xC2\xB7  " .. read_pct .. "% read", fpx(24), { bold = true, color = tone.fg })
-    if t_head.w + t_tot.w + px(20) > W then t_tot = c:text(A.thousands(total) .. " books", fpx(24), { bold = true, color = tone.fg }) end
+    local t_tot = c:text(A.thousands(total) .. T(" books  \xC2\xB7  ") .. read_pct .. T("% read"), fpx(24), { bold = true, color = tone.fg })
+    if t_head.w + t_tot.w + px(20) > W then t_tot = c:text(A.thousands(total) .. T(" books"), fpx(24), { bold = true, color = tone.fg }) end
     if t_head.w + t_tot.w + px(20) <= W then c:put(t_tot, w - pad, pad + t_head.base, "r", "base") end
     local y = pad + t_head.h + px(14)
-    local t_line = c:textbox("You've read " .. read_pct .. "% of your library.", fpx(30), W, 1, { bold = true, color = tone.fg })
+    local t_line = c:textbox(T("You've read ") .. read_pct .. T("% of your library."), fpx(30), W, 1, { bold = true, color = tone.fg })
     local bh = max(8, px(26))
     -- the figures: one row of up to four, or two rows of two when narrow
     local cols = (W / #parts >= px(190)) and #parts or 2
@@ -3955,9 +3986,9 @@ function P.library.build(env)
 end
 
 P.authors = {
-    does = "nothing",
-    title = "Most-read authors", tone = "ink", ratio = 0.5, ratio_narrow = 0.75,
-    summary = "The authors you've read most, by books finished or by hours read.",
+    does = T("nothing"),
+    title = T("Most-read authors"), tone = "ink", ratio = 0.5, ratio_narrow = 0.75,
+    summary = T("The authors you've read most, by books finished or by hours read."),
 }
 
 local SAMPLE_AUTHORS = {
@@ -3980,17 +4011,17 @@ function P.authors.build(env)
     local by = env.cfg("by", "books") == "time" and "time" or "books"
     local list = env.sample and SAMPLE_AUTHORS[by] or D.authors(env.refresh, by)
     if list == false then
-        return emptyState(env, c, s, "Most-read authors", "Nothing to count yet",
-            by == "time" and "Needs the Reading statistics plugin." or "Set a home folder in KOReader's file browser.")
+        return emptyState(env, c, s, T("Most-read authors"), T("Nothing to count yet"),
+            by == "time" and T("Needs the Reading statistics plugin.") or T("Set a home folder in KOReader's file browser."))
     end
     local pad = px(36)
     local W = w - 2 * pad
-    local t_head = c:label("Most-read authors", fpx(24), pad, pad, { bold = true, caps = true, color = tone.accent, max_w = W })
-    local t_by = c:text(by == "time" and "by time" or "by books", fpx(22), { bold = true, color = tone.label })
+    local t_head = c:label(T("Most-read authors"), fpx(24), pad, pad, { bold = true, caps = true, color = tone.accent, max_w = W })
+    local t_by = c:text(by == "time" and T("by time") or T("by books"), fpx(22), { bold = true, color = tone.label })
     if t_head.w + t_by.w + px(20) <= W then c:put(t_by, w - pad, pad + t_head.base, "r", "base") end
     if not list then return c end
     if #list == 0 then
-        c:label(by == "time" and "No reading time yet" or "No finished books yet", fpx(26), w / 2, h / 2,
+        c:label(by == "time" and T("No reading time yet") or T("No finished books yet"), fpx(26), w / 2, h / 2,
             { anchor = "c", valign = "mid", bold = true, color = tone.muted, max_w = W })
         return c
     end
@@ -4024,15 +4055,15 @@ function P.authors.build(env)
 end
 
 P.pick = {
-    does = "opens the book",
-    title = "Random pick", tone = "paper", ratio = 0.5, ratio_narrow = 0.75,
-    summary = "A book you haven't started, picked from your library, a collection, genres or authors. Only the next book of a series.",
+    does = T("opens the book"),
+    title = T("Random pick"), tone = "paper", ratio = 0.5, ratio_narrow = 0.75,
+    summary = T("A book you haven't started, picked from your library, a collection, genres or authors. Only the next book of a series."),
 }
 
-local SAMPLE_PICK = { fp = nil, title = "The Salt Crown", authors = { "Mara Vell" }, genres = { "Fantasy" },
+local SAMPLE_PICK = { fp = nil, title = "The Salt Crown", authors = { "Mara Vell" }, genres = { T("Fantasy") },
     series = "The Shadow Saga", num = 3, status = "unread" }
 
-local PICK_WHEN = { day = "Today's pick", week = "This week's pick", month = "This month's pick", tap = "Random pick" }
+local PICK_WHEN = { day = T("Today's pick"), week = T("This week's pick"), month = T("This month's pick"), tap = T("Random pick") }
 
 -- The settings the pick reads, wherever it is drawn (its card or the Mini
 -- dashboard): the pick card's own saved values.
@@ -4091,7 +4122,7 @@ local function seriesText(lib, b)
     local num, of = D.seriesPlace(lib and lib.books or {}, b)
     if num then
         local shown = num == floor(num) and tostring(floor(num)) or tostring(num)
-        return "Book " .. shown .. ((of and of >= num) and (" of " .. of) or "") .. "  \xC2\xB7  " .. b.series
+        return T("Book ") .. shown .. ((of and of >= num) and (T(" of ") .. of) or "") .. "  \xC2\xB7  " .. b.series
     end
     return b.series
 end
@@ -4108,13 +4139,13 @@ function P.pick.build(env)
         b, lib = A.pickNow(env.refresh)
     end
     if b == false or (lib and not b) then
-        return emptyState(env, c, s, "Random pick", "Nothing to pick",
-            lib and "No unstarted books match your choices." or "Set a home folder in KOReader's file browser.")
+        return emptyState(env, c, s, T("Random pick"), T("Nothing to pick"),
+            lib and T("No unstarted books match your choices.") or T("Set a home folder in KOReader's file browser."))
     end
     local pad = px(32)
     if b == nil then
-        c:label("Random pick", fpx(22), pad, pad, { bold = true, caps = true, color = tone.accent })
-        c:label("Looking through your books\xE2\x80\xA6", fpx(24), w / 2, h / 2, { anchor = "c", valign = "mid", color = tone.muted })
+        c:label(T("Random pick"), fpx(22), pad, pad, { bold = true, caps = true, color = tone.accent })
+        c:label(T("Looking through your books\xE2\x80\xA6"), fpx(24), w / 2, h / 2, { anchor = "c", valign = "mid", color = tone.muted })
         return c
     end
     if not env.sample then A.state.pick_fp = b.fp end
@@ -4128,7 +4159,7 @@ function P.pick.build(env)
     local tw = w - pad - tx
     local btn_h = fpx(54)
     local y = pad
-    local t_k = c:text(PICK_WHEN[pickCfg("every", "week")] or "Random pick", fpx(22), { bold = true, caps = true, color = tone.accent, max_w = tw })
+    local t_k = c:text(PICK_WHEN[pickCfg("every", "week")] or T("Random pick"), fpx(22), { bold = true, caps = true, color = tone.accent, max_w = tw })
     local by_ = h - pad - btn_h
     local with_btns = by_ - y >= btn_h * 2.2
     if not with_btns then by_ = h - pad end
@@ -4158,8 +4189,8 @@ function P.pick.build(env)
         local pb = px(22)
         local t_o, t_a, need
         for _ = 1, 3 do
-            t_o = c:text("Open", fb, { bold = true, color = tone.btn_fg })
-            t_a = c:text("Another", fb, { bold = true, color = tone.fg })
+            t_o = c:text(T("Open"), fb, { bold = true, color = tone.btn_fg })
+            t_a = c:text(T("Another"), fb, { bold = true, color = tone.fg })
             need = t_o.w + t_a.w + 4 * pb + bgap
             if need <= tw or fb <= minFont() then break end
             fb = max(minFont(), floor(fb * 0.88))
@@ -4192,13 +4223,13 @@ function P.pick.keep(region) return region == "another" end
 function P.pick.controls(region) return region == "open" or region == "another" end
 
 P.quote = {
-    does = "opens the book",
-    title = "Quote of the day", tone = "tint2", ratio = 0.34, ratio_narrow = 0.6,
-    summary = "One of your own highlights each day, with the book it came from.",
+    does = T("opens the book"),
+    title = T("Quote of the day"), tone = "tint2", ratio = 0.34, ratio_narrow = 0.6,
+    summary = T("One of your own highlights each day, with the book it came from."),
 }
 
-local SAMPLE_QUOTE = { text = "The rooms go on further than anyone has walked, and every one of them is patient.",
-    title = "Piranesi", author = "Susanna Clarke", chapter = "Chapter 1" }
+local SAMPLE_QUOTE = { text = T("The rooms go on further than anyone has walked, and every one of them is patient."),
+    title = "Piranesi", author = "Susanna Clarke", chapter = T("Chapter 1") }
 
 -- "Piranesi, Susanna Clarke": the cover browser's title and author when it
 -- has them (the quote carries the sidecar's, or the file name).
@@ -4236,19 +4267,19 @@ function P.quote.build(env)
     local q
     if env.sample then q = SAMPLE_QUOTE
     elseif not D.hasQuotes() then
-        return emptyState(env, c, s, "Quote of the day", "No highlights yet", "Highlight a line while you read and it can show up here.")
+        return emptyState(env, c, s, T("Quote of the day"), T("No highlights yet"), T("Highlight a line while you read and it can show up here."))
     else
         q = D.quote(env.refresh)
     end
     local pad = px(38)
     local W = w - 2 * pad
     if q == false or (q and not q.text) then
-        return emptyState(env, c, s, "Quote of the day", "No highlights yet",
-            "Highlight a line while you read and it can show up here.")
+        return emptyState(env, c, s, T("Quote of the day"), T("No highlights yet"),
+            T("Highlight a line while you read and it can show up here."))
     end
-    local t_head = c:label("Quote of the day", fpx(22), pad, pad, { bold = true, caps = true, color = tone.accent, max_w = W * 0.6 })
+    local t_head = c:label(T("Quote of the day"), fpx(22), pad, pad, { bold = true, caps = true, color = tone.accent, max_w = W * 0.6 })
     local pill_h = fpx(44)
-    local t_an = c:text("Another", fpx(21), { bold = true, color = tone.fg })
+    local t_an = c:text(T("Another"), fpx(21), { bold = true, color = tone.fg })
     local pw = t_an.w + fpx(34)
     if t_head.w + pw + px(20) <= W then
         local pxx = w - pad - pw
@@ -4284,9 +4315,9 @@ function P.quote.keep(region) return region == "another" end
 function P.quote.controls(region) return region == "another" end
 
 P.timeline = {
-    does = "opens the reading calendar",
-    title = "Today's timeline", tone = "ink", ratio = 0.36, ratio_narrow = 0.6,
-    summary = "When you read today: each sitting on a line through the day, and the book it was.",
+    does = T("opens the reading calendar"),
+    title = T("Today's timeline"), tone = "ink", ratio = 0.36, ratio_narrow = 0.6,
+    summary = T("When you read today: each sitting on a line through the day, and the book it was."),
 }
 
 local function sampleToday()
@@ -4301,12 +4332,19 @@ end
 
 local function clockShort(t)
     local tt = os.date("*t", t)
+    -- KOReader's own clock setting: 24-hour unless twelve-hour is chosen
+    if not (G_reader_settings and G_reader_settings:isTrue("twelve_hour_clock")) then
+        return string.format("%d:%02d", tt.hour, tt.min)
+    end
     local hh = tt.hour % 12
     if hh == 0 then hh = 12 end
     return string.format("%d:%02d", hh, tt.min) .. (tt.hour < 12 and " am" or " pm")
 end
 
 local function hourMark(hr)
+    if not (G_reader_settings and G_reader_settings:isTrue("twelve_hour_clock")) then
+        return tostring(hr % 24)
+    end
     if hr == 0 or hr == 24 then return "12a" end
     if hr == 12 then return "12p" end
     return (hr % 12) .. (hr < 12 and "a" or "p")
@@ -4358,16 +4396,16 @@ function P.timeline.build(env)
     local c = card(env, s)
     local day = env.sample and sampleToday() or D.today(env.refresh)
     if day == false then
-        return emptyState(env, c, s, "Today's timeline", "No reading statistics", "Turn on KOReader's Reading statistics plugin.")
+        return emptyState(env, c, s, T("Today's timeline"), T("No reading statistics"), T("Turn on KOReader's Reading statistics plugin."))
     end
     local pad = px(36)
     local W = w - 2 * pad
-    local t_head = c:label("Today", fpx(24), pad, pad, { bold = true, caps = true, color = tone.accent, max_w = W * 0.5 })
+    local t_head = c:label(T("Today"), fpx(24), pad, pad, { bold = true, caps = true, color = tone.accent, max_w = W * 0.5 })
     if not day then return c end
     local secs = 0
     for _, sit in ipairs(day.sittings) do secs = secs + sit.secs end
     local n = #day.sittings
-    local right = n > 0 and (A.fmtMinutes(secs / 60) .. "  \xC2\xB7  " .. A.plural(n, "sitting", "sittings")) or "Nothing read yet"
+    local right = n > 0 and (A.fmtMinutes(secs / 60) .. "  \xC2\xB7  " .. A.plural(n, "sitting", "sittings")) or T("Nothing read yet")
     local t_r = c:text(right, fpx(24), { bold = true, color = n > 0 and tone.fg or tone.muted })
     if t_head.w + t_r.w + px(20) <= W then c:put(t_r, w - pad, pad + t_head.base, "r", "base") end
     local y = pad + t_head.h + px(22)
@@ -4380,7 +4418,7 @@ function P.timeline.build(env)
     local fit = floor((h - floor(pad * 0.6) - y + px(8)) / row_h)
     if n == 0 then
         if fit >= 1 then
-            c:label("Open a book and each sitting shows up here.", fpx(22), pad, y, { color = tone.muted, max_w = W })
+            c:label(T("Open a book and each sitting shows up here."), fpx(22), pad, y, { color = tone.muted, max_w = W })
         end
     else
         local cols = (W >= px(1100) and fit < n) and 2 or 1
@@ -4413,9 +4451,9 @@ end
 function P.timeline.tap(env) D.dispatch("stats_calendar_view") end
 
 P.mini = {
-    does = "depends on the part tapped",
-    title = "Mini dashboard", tone = "ink", ratio = 0.3, ratio_narrow = 0.5,
-    summary = "One row of small cards for the top of the home screen: what you're reading, today's rings and the Control centre, or others you pick.",
+    does = T("depends on the part tapped"),
+    title = T("Mini dashboard"), tone = "ink", ratio = 0.3, ratio_narrow = 0.5,
+    summary = T("One row of small cards for the top of the home screen: what you're reading, today's rings and the Control centre, or others you pick."),
 }
 
 A.MINI_TILES = { "today", "control", "reading", "rings", "compare", "week", "challenge", "forecast", "goal",
@@ -4423,10 +4461,10 @@ A.MINI_TILES = { "today", "control", "reading", "rings", "compare", "week", "cha
 A.MINI_DEFAULT = { "today", "control" }
 A.MINI_MAX = 3
 A.MINI_LABEL = {
-    today = "Reading and today's rings", reading = "Continue reading", rings = "Activity rings",
-    control = "Control centre", compare = "This week vs last", week = "Week rings",
-    challenge = "Monthly challenge", forecast = "Finish forecast", goal = "Year goal",
-    timeline = "Today's timeline", pick = "Random pick", quote = "Quote of the day", library = "Library stats",
+    today = T("Reading and today's rings"), reading = T("Continue reading"), rings = T("Activity rings"),
+    control = T("Control centre"), compare = T("This week vs last"), week = T("Week rings"),
+    challenge = T("Monthly challenge"), forecast = T("Finish forecast"), goal = T("Year goal"),
+    timeline = T("Today's timeline"), pick = T("Random pick"), quote = T("Quote of the day"), library = T("Library stats"),
 }
 -- how much of the row each wants, and the least it can be drawn in (dp)
 local MINI_WEIGHT = { today = 2.0, reading = 1.4, rings = 1.25, control = 1.45, compare = 1.5, week = 1.5,
@@ -4464,7 +4502,7 @@ function MINI.reading(c, env, x, y, w, h, px, fpx, tone)
     local list = readingNow(env)
     local b = list[1]
     if not b then
-        c:label("Nothing in progress", fpx(22), x + w / 2, y + h / 2, { bold = true, anchor = "c", valign = "mid",
+        c:label(T("Nothing in progress"), fpx(22), x + w / 2, y + h / 2, { bold = true, anchor = "c", valign = "mid",
             color = tone.muted, max_w = w })
         return
     end
@@ -4477,14 +4515,14 @@ function MINI.reading(c, env, x, y, w, h, px, fpx, tone)
     local room = x + w - tx
     local days = (not env.sample) and D.dayOfBook(env.refresh, b.fp) or 4
     local lines = {}
-    local t_k = c:text("Continue reading", fpx(18), { bold = true, caps = true, color = tone.accent, max_w = room })
+    local t_k = c:text(T("Continue reading"), fpx(18), { bold = true, caps = true, color = tone.accent, max_w = room })
     local t_title = c:textbox(b.title or "", fpx(26), room, 2, { bold = true, color = tone.fg })
     if t_title.h > h * 0.42 then t_title = c:textbox(b.title or "", fpx(26), room, 1, { bold = true, color = tone.fg }) end
     local t_author = b.author and c:text(b.author, fpx(20), { color = tone.muted, max_w = room }) or nil
     local pct = floor((b.pct or 0) * 100 + 0.5)
     local t_pct = c:text(pct .. "%" .. (days and ("  \xC2\xB7  " .. A.plural(days, "day", "days")) or ""), fpx(20),
         { bold = true, color = tone.fg, max_w = room })
-    local t_left = b.left_min and c:text(A.fmtMinutes(b.left_min) .. " left", fpx(20), { bold = true, color = tone.label,
+    local t_left = b.left_min and c:text(A.fmtMinutes(b.left_min) .. T(" left"), fpx(20), { bold = true, color = tone.label,
         max_w = room }) or nil
     local bar_h = max(4, px(9))
     local gap = px(8)
@@ -4541,7 +4579,7 @@ function MINI.today(c, env, x, y, w, h, px, fpx, tone)
     local t_author = b.author and c:text(b.author, fpx(20), { color = tone.muted, max_w = room }) or nil
     local pct = floor((b.pct or 0) * 100 + 0.5)
     local pct_str = pct .. "%"
-    if b.left_min then pct_str = pct_str .. "  \xC2\xB7  " .. A.fmtMinutes(b.left_min) .. " left" end
+    if b.left_min then pct_str = pct_str .. "  \xC2\xB7  " .. A.fmtMinutes(b.left_min) .. T(" left") end
     local t_pct = c:text(pct_str, fpx(20), { bold = true, color = tone.label, max_w = room })
     local bar_h = max(4, px(9))
 
@@ -4554,7 +4592,7 @@ function MINI.today(c, env, x, y, w, h, px, fpx, tone)
     local figs = {
         { st and A.plural(pages, "page", "pages") or "\xE2\x80\xA6", cols[1] },
         { st and A.fmtMinutes(mins) or "\xE2\x80\xA6", cols[2] },
-        { st and (streak > 0 and ("Streak " .. streak) or "No streak") or "\xE2\x80\xA6", cols[3] },
+        { st and (streak > 0 and (T("Streak ") .. streak) or T("No streak")) or "\xE2\x80\xA6", cols[3] },
     }
     local t_sep = c:text("  \xC2\xB7  ", f_fig, { bold = true, color = tone.label })
     local ft = {}
@@ -4565,7 +4603,7 @@ function MINI.today(c, env, x, y, w, h, px, fpx, tone)
     local one = ft[1].w + ft[2].w + ft[3].w + 2 * t_sep.w <= fx_room
     if one and st then
         -- "2 m read" when there is room for the word
-        local t_read = c:text(A.fmtMinutes(mins) .. " read", f_fig, { bold = true, color = cols[2] })
+        local t_read = c:text(A.fmtMinutes(mins) .. T(" read"), f_fig, { bold = true, color = cols[2] })
         if ft[1].w + t_read.w + ft[3].w + 2 * t_sep.w <= fx_room then ft[2] = t_read end
     end
     local row_h = max(dia, one and ft[1].h or (ft[1].h * 2))
@@ -4651,8 +4689,8 @@ function MINI.rings(c, env, x, y, w, h, px, fpx, tone)
     local cols = tone.series
     local lines = {
         st and A.plural(pages, "page", "pages") or "\xE2\x80\xA6",
-        st and (A.fmtMinutes(mins) .. " read") or "\xE2\x80\xA6",
-        st and (streak > 0 and ("Streak " .. streak) or "No streak") or "\xE2\x80\xA6",
+        st and (A.fmtMinutes(mins) .. T(" read")) or "\xE2\x80\xA6",
+        st and (streak > 0 and (T("Streak ") .. streak) or T("No streak")) or "\xE2\x80\xA6",
     }
     local texts, widest = {}, 0
     for i, str in ipairs(lines) do
@@ -4691,7 +4729,7 @@ function MINI.week(c, env, x, y, w, h, px, fpx, tone)
     local cols = tone.series
     local page_goal = max(1, tonumber(A.get("activity_page_goal", 30)) or 30)
     local min_goal = D.dailyMinutesGoal()
-    local top = miniHead(c, "This week", x, y, w, fpx, tone,
+    local top = miniHead(c, T("This week"), x, y, w, fpx, tone,
         st and (A.plural(st.week_pages, "page", "pages")) or nil) + px(8)
     local t_l = c:text("M", fpx(19), { bold = true })
     local col_w = w / 7
@@ -4728,7 +4766,7 @@ function MINI.challenge(c, env, x, y, w, h, px, fpx, tone)
     local room = x + w - tx
     local t1 = c:text(challengeGoal(ch), fpx(22), { bold = true, color = tone.fg, max_w = room })
     local t2 = c:text(challengeDone(ch), fpx(20), { bold = true, color = col, max_w = room })
-    local t3 = c:text(ch.complete and "Done!" or (ch.on_pace and "On pace" or "Behind pace"), fpx(19),
+    local t3 = c:text(ch.complete and T("Done!") or (ch.on_pace and T("On pace") or T("Behind pace")), fpx(19),
         { bold = true, color = tone.label, max_w = room })
     local total = t1.h + t2.h + t3.h + px(8)
     local yy = cy - total / 2
@@ -4742,7 +4780,7 @@ function MINI.forecast(c, env, x, y, w, h, px, fpx, tone)
     if not b then return end
     local avg = env.sample and { secs = 6420, pages = 312 } or D.recentAverage(D.stats(env.refresh))
     local big, small = whenText(D.forecastFor(b, avg))
-    local top = miniHead(c, "Finish forecast", x, y, w, fpx, tone) + px(6)
+    local top = miniHead(c, T("Finish forecast"), x, y, w, fpx, tone) + px(6)
     local t_t = c:text(b.title or "", fpx(21), { bold = true, color = tone.fg, max_w = w })
     local t_b = c:text(big, fpx(40), { bold = true, color = tone.accent, max_w = w })
     local t_s = c:text(small, fpx(19), { bold = true, color = tone.muted, max_w = w })
@@ -4758,9 +4796,9 @@ function MINI.goal(c, env, x, y, w, h, px, fpx, tone)
     local target, other = D.yearGoal()
     if env.sample then target, other = 36, 0 end
     local done = (yr and yr.total or 0) + other
-    local top = miniHead(c, os.date("%Y") .. " goal", x, y, w, fpx, tone) + px(6)
+    local top = miniHead(c, os.date("%Y") .. T(" goal"), x, y, w, fpx, tone) + px(6)
     local t_n = c:text(tostring(done), fpx(64), { bold = true, color = tone.fg })
-    local t_of = c:text("of " .. target .. " books", fpx(21), { bold = true, color = tone.accent, max_w = w })
+    local t_of = c:text(T("of ") .. target .. T(" books"), fpx(21), { bold = true, color = tone.accent, max_w = w })
     local bar_h = max(5, px(12))
     local total = t_n.h + t_of.h + px(10) + bar_h
     local yy = top + max(0, floor((y + h - top - total) / 2))
@@ -4778,8 +4816,8 @@ function MINI.timeline(c, env, x, y, w, h, px, fpx, tone)
     local secs = 0
     for _, sit in ipairs(day.sittings) do secs = secs + sit.secs end
     local n = #day.sittings
-    local top = miniHead(c, "Today", x, y, w, fpx, tone, n > 0 and A.plural(n, "sitting", "sittings") or nil) + px(6)
-    local t_big = c:text(n > 0 and A.fmtMinutes(secs / 60) or "Not yet", fpx(40), { bold = true, color = n > 0 and tone.fg or tone.muted, max_w = w })
+    local top = miniHead(c, T("Today"), x, y, w, fpx, tone, n > 0 and A.plural(n, "sitting", "sittings") or nil) + px(6)
+    local t_big = c:text(n > 0 and A.fmtMinutes(secs / 60) or T("Not yet"), fpx(40), { bold = true, color = n > 0 and tone.fg or tone.muted, max_w = w })
     local bh = max(6, px(22))
     local t_m = c:text("12a", fpx(17), { bold = true })
     local total = t_big.h + px(10) + bh + px(4) + t_m.h
@@ -4794,7 +4832,7 @@ function MINI.pick(c, env, x, y, w, h, px, fpx, tone)
     if env.sample then b, lib = SAMPLE_PICK, { books = { SAMPLE_PICK } } else b, lib = A.pickNow(env.refresh) end
     if not b then
         if lib then
-            c:label("Nothing to pick", fpx(22), x + w / 2, y + h / 2, { bold = true, anchor = "c", valign = "mid", color = tone.muted, max_w = w })
+            c:label(T("Nothing to pick"), fpx(22), x + w / 2, y + h / 2, { bold = true, anchor = "c", valign = "mid", color = tone.muted, max_w = w })
         end
         return
     end
@@ -4805,7 +4843,7 @@ function MINI.pick(c, env, x, y, w, h, px, fpx, tone)
     local tx = x + cov_w + px(18)
     local room = x + w - tx
     local lines = {
-        c:text(PICK_WHEN[pickCfg("every", "week")] or "Random pick", fpx(18), { bold = true, caps = true, color = tone.accent, max_w = room }),
+        c:text(PICK_WHEN[pickCfg("every", "week")] or T("Random pick"), fpx(18), { bold = true, caps = true, color = tone.accent, max_w = room }),
         c:textbox(b.title or "", fpx(26), room, 2, { bold = true, color = tone.fg }),
     }
     if b.authors[1] then lines[#lines + 1] = c:text(b.authors[1], fpx(20), { color = tone.muted, max_w = room }) end
@@ -4824,7 +4862,7 @@ function MINI.quote(c, env, x, y, w, h, px, fpx, tone)
     local q = env.sample and SAMPLE_QUOTE or (D.hasQuotes() and D.quote(env.refresh)) or nil
     if not q then
         if q == false or (not env.sample and not D.hasQuotes()) then
-            c:label("No highlights yet", fpx(22), x + w / 2, y + h / 2, { bold = true, anchor = "c", valign = "mid", color = tone.muted, max_w = w })
+            c:label(T("No highlights yet"), fpx(22), x + w / 2, y + h / 2, { bold = true, anchor = "c", valign = "mid", color = tone.muted, max_w = w })
         end
         return
     end
@@ -4844,7 +4882,7 @@ function MINI.library(c, env, x, y, w, h, px, fpx, tone)
     local lib = env.sample and SAMPLE_LIBRARY or D.library(env.refresh)
     if not lib then return end
     local total = lib.total or 0
-    local top = miniHead(c, "Library", x, y, w, fpx, tone, A.thousands(total) .. " books") + px(6)
+    local top = miniHead(c, T("Library"), x, y, w, fpx, tone, A.thousands(total) .. T(" books")) + px(6)
     local parts = libraryParts(tone, lib.counts)
     local bh = max(6, px(18))
     local t_n = c:text("8", fpx(34), { bold = true })
@@ -4859,7 +4897,7 @@ function MINI.library(c, env, x, y, w, h, px, fpx, tone)
     for i, p in ipairs(shown) do
         local cx = x + (i - 1) * cw
         c:label(A.thousands(p.n), fpx(34), cx, yy, { bold = true, color = tone.fg, max_w = cw - px(4) })
-        c:label(p.key == "unread" and "To read" or p.label, fpx(17), cx, yy + t_n.h, { bold = true, color = tone.label, max_w = cw - px(4) })
+        c:label(p.key == "unread" and T("To read") or p.label, fpx(17), cx, yy + t_n.h, { bold = true, color = tone.label, max_w = cw - px(4) })
     end
 end
 

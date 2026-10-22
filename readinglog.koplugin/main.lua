@@ -13,7 +13,7 @@ The cards themselves live in the readinglog/ folder (see readinglog/init.lua).
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local UIManager = require("ui/uimanager")
 local logger = require("logger")
-local _ = require("gettext")
+local gettext = require("gettext")
 
 local DIR = (debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")) or "."
 
@@ -53,7 +53,44 @@ local function register()
     return true
 end
 
+-- Our own catalogs (readinglog/locales) first, then KOReader's.
+local function _(s)
+    local A = package.loaded["readinglog_kit"]
+    if A and A._ then
+        local t = A._(s)
+        if t ~= s then return t end
+    end
+    return gettext(s)
+end
+
+-- "%1" placeholders, filled in after translating
+local function fmt(s, ...)
+    local args = { ... }
+    return (_(s):gsub("%%(%d+)", function(i)
+        local v = args[tonumber(i)]
+        return v == nil and ("%" .. i) or tostring(v)
+    end))
+end
+
 local warned = false
+
+-- Check for updates (see updater.lua), loaded when first needed.
+local updater_mod
+local function updater()
+    if updater_mod == nil then
+        local ok, mk = pcall(dofile, DIR .. "/updater.lua")
+        local ok2, U = false, nil
+        if ok and type(mk) == "function" then ok2, U = pcall(mk, DIR, _, fmt) end
+        if not (ok2 and type(U) == "table") then
+            logger.warn("[readinglog] updater could not be loaded:", ok and U or mk)
+            updater_mod = false
+        else
+            updater_mod = U
+        end
+    end
+    return updater_mod or nil
+end
+local auto_checked = false
 
 local ReadingLog = WidgetContainer:extend{
     name = "readinglog",
@@ -77,6 +114,11 @@ function ReadingLog:init()
     if self.ui and self.ui.menu then
         self.ui.menu:registerToMainMenu(self)
     end
+    if not auto_checked then
+        auto_checked = true
+        local U = updater()
+        if U then pcall(U.autoCheck) end
+    end
 end
 
 function ReadingLog:addToMainMenu(menu_items)
@@ -93,23 +135,32 @@ function ReadingLog:addToMainMenu(menu_items)
                 end,
             },
             {
-                text = _("Copy settings from the Bookshelf version"),
-                enabled_func = function() return kit() ~= nil end,
-                callback = function()
-                    local A = kit()
-                    if not A then return end
-                    local n = A.host.importBookshelf()
-                    local InfoMessage = require("ui/widget/infomessage")
-                    UIManager:show(InfoMessage:new{
-                        text = n and n > 0
-                            and string.format(_("Copied %d settings from Reading Log for Bookshelf."), n)
-                            or _("No Reading Log for Bookshelf settings were found."),
-                    })
-                    if n and n > 0 then
-                        A.D.invalidate()
-                        A.host.redrawAll()
-                    end
+                text_func = function()
+                    local U = updater()
+                    local v = U and U.found()
+                    return v and fmt("Update available: %1", v) or _("Check for updates")
                 end,
+                enabled_func = function() return updater() ~= nil end,
+                keep_menu_open = true,
+                callback = function()
+                    local U = updater()
+                    if U then U.check() end
+                end,
+            },
+            {
+                text = _("Check for updates automatically"),
+                help_text = _("Once a day at most, when you're already online. A new version is mentioned, never installed without asking."),
+                checked_func = function()
+                    local U = updater()
+                    return U and U.autoEnabled() or false
+                end,
+                enabled_func = function() return updater() ~= nil end,
+                keep_menu_open = true,
+                callback = function()
+                    local U = updater()
+                    if U then U.setAuto(not U.autoEnabled()) end
+                end,
+                separator = true,
             },
             {
                 text = _("About"),
@@ -119,15 +170,15 @@ function ReadingLog:addToMainMenu(menu_items)
                     local InfoMessage = require("ui/widget/infomessage")
                     local found = pcall(require, "modules/moduleregistry")
                     UIManager:show(InfoMessage:new{
-                        text = string.format(_([[Reading Log %s for Simple UI
+                        text = fmt([[Reading Log %1 for Simple UI
 
-Simple UI: %s
+Simple UI: %2
 
 To add a card: Simple UI Settings > Home Screen > Layout Editor (or Extra Custom Screens), open a page, tap Add Module and pick any "Reading Log · …" module. Long-press a card for its settings.
 
 For the Dashboard, give "Reading Log · Dashboard" a page (or a custom screen) of its own, and set its Top Margin to 0.
 
-Ring designs and the dashboard idea: u/fishnoogz on Reddit.]]),
+Ring designs and the dashboard idea: u/fishnoogz on Reddit.]],
                             A and A.VERSION or "?",
                             found and (A and A.host.version() or _("found")) or _("not found")),
                     })

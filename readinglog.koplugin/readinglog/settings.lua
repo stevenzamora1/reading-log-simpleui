@@ -15,20 +15,14 @@ start), which applies to all the cards at once.
 ]]
 
 local A = ...
+local T = A._
 local D = A.D
 local P = A.panels
 local S = {}
 A.S = S
 
-local function tr(s)
-    local ok, gettext = pcall(require, "gettext")
-    if ok and type(gettext) == "function" then return gettext(s) end
-    if ok and type(gettext) == "table" and getmetatable(gettext) and getmetatable(gettext).__call then
-        return gettext(s)
-    end
-    return s
-end
-S.tr = tr
+local tr = T
+S.tr = T
 
 local CHECK = "\xE2\x9C\x93 "
 local ELLIPSIS = "\xE2\x80\xA6"
@@ -66,7 +60,7 @@ function S.open(ctx, title, rows_fn, all)
         S.open(ctx, title, rows_fn, all)
     end
     local rows = rows_fn(api)
-    rows[#rows + 1] = { { text = tr("Close"), callback = function() api.close() end } }
+    rows[#rows + 1] = { { text = T("Close"), callback = function() api.close() end } }
     dialog = ButtonDialog:new{
         title = title, title_align = "center", width_factor = 0.86, buttons = rows,
     }
@@ -102,7 +96,7 @@ end
 -- o = { hint=, number=bool, min=, max=, empty_label=, description= }
 function S.input(api, label, value, on_save, o)
     o = o or {}
-    local shown = (value == nil or value == "") and (o.empty_label or "not set") or shorten(value, 28)
+    local shown = (value == nil or value == "") and (o.empty_label or T("not set")) or shorten(value, 28)
     return { _sui = { kind = "input", label = label, value = value, on_save = on_save, o = o }, {
         text = label .. ": " .. shown,
         callback = function()
@@ -117,11 +111,11 @@ function S.input(api, label, value, on_save, o)
                 input_hint = o.hint,
                 input_type = o.number and "number" or nil,
                 buttons = { {
-                    { text = tr("Cancel"), id = "close", callback = function()
+                    { text = T("Cancel"), id = "close", callback = function()
                         UIManager:close(input)
                         api.again()
                     end },
-                    { text = tr("Save"), is_enter_default = true, callback = function()
+                    { text = T("Save"), is_enter_default = true, callback = function()
                         local txt = input:getInputText() or ""
                         UIManager:close(input)
                         if o.number then
@@ -148,7 +142,7 @@ end
 -- "Label: 4 Oct 2026" row that opens KOReader's date picker.
 function S.date(api, label, value, on_save)
     local y, m, d = A.parseYmd(value)
-    local shown = y and (d .. " " .. A.date("%b", os.time{ year = y, month = m, day = d, hour = 12 }) .. " " .. y) or "not set"
+    local shown = y and (d .. " " .. A.date("%b", os.time{ year = y, month = m, day = d, hour = 12 }) .. " " .. y) or T("not set")
     return { _sui = { kind = "date", label = label, value = value, on_save = on_save, shown = shown }, {
         text = label .. ": " .. shown,
         callback = function()
@@ -176,7 +170,7 @@ end
 -- "Label: value" row that opens a list to pick one from.
 -- options = { { value, label }, ... }
 function S.pick(ctx, api, label, options, current, on_pick)
-    local shown = "not set"
+    local shown = T("not set")
     for _, opt in ipairs(options) do
         if opt[1] == current then shown = shorten(opt[2], 28) end
     end
@@ -197,9 +191,9 @@ function S.pick(ctx, api, label, options, current, on_pick)
                         end,
                     } }
                 end
-                if #rows == 0 then rows[1] = S.header("Nothing to choose from yet") end
+                if #rows == 0 then rows[1] = S.header(T("Nothing to choose from yet")) end
                 -- replace the sub-dialog's own Close with "back to the card's settings"
-                rows[#rows + 1] = { { text = tr("Back"), callback = function() sub.close(); api.again() end } }
+                rows[#rows + 1] = { { text = T("Back"), callback = function() sub.close(); api.again() end } }
                 return rows
             end)
         end,
@@ -221,7 +215,7 @@ function S.multi(ctx, api, label, options, current, on_change, any_label)
                     local on = {}
                     for _, v in ipairs(current) do on[v:lower()] = true end
                     local rows, line = {}, {}
-                    rows[#rows + 1] = { { text = ((#current == 0) and CHECK or "") .. (any_label or "Any"), callback = function()
+                    rows[#rows + 1] = { { text = ((#current == 0) and CHECK or "") .. (any_label or T("Any")), callback = function()
                         current = {}
                         on_change(nil)
                         sub.close(); show()
@@ -242,8 +236,8 @@ function S.multi(ctx, api, label, options, current, on_change, any_label)
                         if #line == 2 then rows[#rows + 1] = line; line = {} end
                     end
                     if #line > 0 then rows[#rows + 1] = line end
-                    if #options == 0 then rows[#rows + 1] = S.header("Nothing to choose from yet") end
-                    rows[#rows + 1] = { { text = tr("Back"), callback = function() sub.close(); reload(ctx); api.again() end } }
+                    if #options == 0 then rows[#rows + 1] = S.header(T("Nothing to choose from yet")) end
+                    rows[#rows + 1] = { { text = T("Back"), callback = function() sub.close(); reload(ctx); api.again() end } }
                     return rows
                 end)
             end
@@ -267,19 +261,19 @@ local ROWS = {}
 
 ROWS.banner = function(env, api)
     return {
-        S.header("Style"),
-        S.radio(api, { { "heading", "Heading" }, { "glance", "At a glance" }, { "classic", "Classic" } },
+        S.header(T("Style")),
+        S.radio(api, { { "heading", T("Heading") }, { "glance", T("At a glance") }, { "classic", T("Classic") } },
             env.cfg("style", "heading"), function(v) env.setcfg("style", v) end),
-        S.input(api, "Top line", env.cfg("line1", ""), function(v) env.setcfg("line1", v) end,
-            { hint = "e.g. Sam's", empty_label = "(hidden)" }),
-        S.input(api, "Bottom line", env.cfg("line2", ""), function(v) env.setcfg("line2", v) end,
-            { hint = "e.g. My Library", empty_label = "(hidden)" }),
+        S.input(api, T("Top line"), env.cfg("line1", ""), function(v) env.setcfg("line1", v) end,
+            { hint = T("e.g. Sam's"), empty_label = T("(hidden)") }),
+        S.input(api, T("Bottom line"), env.cfg("line2", ""), function(v) env.setcfg("line2", v) end,
+            { hint = T("e.g. My Library"), empty_label = T("(hidden)") }),
     }
 end
 
 ROWS.continue = function(env, api)
     return {
-        S.header("How many books to cycle through"),
+        S.header(T("How many books to cycle through")),
         S.radio(api, { { 3, "3" }, { 5, "5" }, { 8, "8" } }, tonumber(env.cfg("count", 5)) or 5,
             function(v) env.setcfg("count", v) end),
     }
@@ -287,12 +281,12 @@ end
 
 ROWS.activity = function(env, api)
     return {
-        S.input(api, "Pages a day", env.cfg("page_goal", 30), function(v) env.setcfg("page_goal", v) end,
+        S.input(api, T("Pages a day"), env.cfg("page_goal", 30), function(v) env.setcfg("page_goal", v) end,
             { number = true, min = 1, max = 2000 }),
-        S.input(api, "Minutes a day", D.dailyMinutesGoal(), function(v) D.setDailyMinutesGoal(v) end,
-            { number = true, min = 1, max = 720, description = "Shared with Simple UI's Reading goals (daily goal)." }),
-        S.header("Streak ring fills at"),
-        S.radio(api, { { 7, "7 days" }, { 14, "14 days" }, { 30, "30 days" } },
+        S.input(api, T("Minutes a day"), D.dailyMinutesGoal(), function(v) D.setDailyMinutesGoal(v) end,
+            { number = true, min = 1, max = 720, description = T("Shared with Simple UI's Reading goals (daily goal).") }),
+        S.header(T("Streak ring fills at")),
+        S.radio(api, { { 7, T("7 days") }, { 14, T("14 days") }, { 30, T("30 days") } },
             tonumber(env.cfg("streak_goal", 7)) or 7, function(v) env.setcfg("streak_goal", v) end),
     }
 end
@@ -300,12 +294,12 @@ end
 ROWS.goal = function(env, api)
     local target, other = D.yearGoal()
     local rows = {
-        S.input(api, "Books this year", target, function(v) D.setYearGoal(v) end,
-            { number = true, min = 1, max = 365, description = "Shared with Simple UI's Reading goals (annual goal)." }),
+        S.input(api, T("Books this year"), target, function(v) D.setYearGoal(v) end,
+            { number = true, min = 1, max = 365, description = T("Shared with Simple UI's Reading goals (annual goal).") }),
     }
     if A.host.ownOtherBooks() then
-        rows[#rows + 1] = S.input(api, "Read outside KOReader", other, function(v) D.setOtherBooks(v) end,
-            { number = true, min = 0, max = 1000, description = "Paper books, audiobooks or another reader. Added to this year's count." })
+        rows[#rows + 1] = S.input(api, T("Read outside KOReader"), other, function(v) D.setOtherBooks(v) end,
+            { number = true, min = 0, max = 1000, description = T("Paper books, audiobooks or another reader. Added to this year's count.") })
     end
     return rows
 end
@@ -313,28 +307,28 @@ end
 ROWS.tbr = function(env, api, ctx)
     local coll = P.tbr.collection(env)
     return {
-        S.pick(ctx, api, "Collection", collectionOptions(), coll, function(v) env.setcfg("coll", v) end),
-        S.input(api, "Title", env.cfg("title", ""), function(v) env.setcfg("title", v) end,
-            { hint = "e.g. October TBR", empty_label = "(month) TBR" }),
-        S.input(api, "Line underneath", env.cfg("tagline", ""), function(v) env.setcfg("tagline", v) end,
-            { hint = "e.g. It's spooky season", empty_label = "(none)" }),
-        S.header("Covers in the row"),
+        S.pick(ctx, api, T("Collection"), collectionOptions(), coll, function(v) env.setcfg("coll", v) end),
+        S.input(api, T("Title"), env.cfg("title", ""), function(v) env.setcfg("title", v) end,
+            { hint = T("e.g. October TBR"), empty_label = T("(month) TBR") }),
+        S.input(api, T("Line underneath"), env.cfg("tagline", ""), function(v) env.setcfg("tagline", v) end,
+            { hint = T("e.g. It's spooky season"), empty_label = T("(none)") }),
+        S.header(T("Covers in the row")),
         S.radio(api, { { 4, "4" }, { 5, "5" }, { 6, "6" }, { 8, "8" } }, tonumber(env.cfg("count", 6)) or 6,
             function(v) env.setcfg("count", v) end),
-        S.header("Label under each cover"),
-        S.radio(api, { { "auto", "Auto" }, { "status", "Progress" }, { "format", "Digital / Hardcopy" }, { "none", "None" } },
+        S.header(T("Label under each cover")),
+        S.radio(api, { { "auto", T("Auto") }, { "status", T("Progress") }, { "format", T("Digital / Hardcopy") }, { "none", T("None") } },
             env.cfg("labels", "auto"), function(v) env.setcfg("labels", v) end),
-        S.pick(ctx, api, "Hardcopy collection", collectionOptions(), env.cfg("hardcopy", "Hardcopy"),
+        S.pick(ctx, api, T("Hardcopy collection"), collectionOptions(), env.cfg("hardcopy", "Hardcopy"),
             function(v) env.setcfg("hardcopy", v) end),
-        S.header("Tapping a cover"),
-        S.radio(api, { { "open", "Opens the book" }, { "details", "Shows book details" } },
+        S.header(T("Tapping a cover")),
+        S.radio(api, { { "open", T("Opens the book") }, { "details", T("Shows book details") } },
             env.cfg("tap", "open"), function(v) env.setcfg("tap", v) end),
     }
 end
 
 ROWS.genres = function(env, api)
     return {
-        S.header("Genres to list"),
+        S.header(T("Genres to list")),
         S.radio(api, { { 3, "3" }, { 4, "4" }, { 5, "5" } }, tonumber(env.cfg("count", 3)) or 3,
             function(v) env.setcfg("count", v) end),
     }
@@ -342,8 +336,8 @@ end
 
 ROWS.year_covers = function(env, api)
     return {
-        S.header("Layout"),
-        S.radio(api, { { "wall", "Cover wall" }, { "months", "Stacked by month" } }, env.cfg("layout", "wall"),
+        S.header(T("Layout")),
+        S.radio(api, { { "wall", T("Cover wall") }, { "months", T("Stacked by month") } }, env.cfg("layout", "wall"),
             function(v) env.setcfg("layout", v ~= "wall" and v or nil) end),
     }
 end
@@ -352,31 +346,31 @@ ROWS.challenge = function(env, api)
     local metric = env.cfg("metric", "auto")
     local manual = tonumber(env.cfg("target", nil))
     local auto = D.challenge(nil, metric, nil)
-    local unit = auto and ({ pages = "pages", minutes = "minutes", days = "days" })[auto.metric] or ""
+    local unit = auto and T(auto.metric) or ""
     local rows = {
-        S.header("The challenge counts"),
-        S.radio(api, { { "auto", "Auto" }, { "pages", "Pages" }, { "minutes", "Minutes" }, { "days", "Reading days" } },
+        S.header(T("The challenge counts")),
+        S.radio(api, { { "auto", T("Auto") }, { "pages", T("Pages") }, { "minutes", T("Minutes") }, { "days", T("Reading days") } },
             metric, function(v) env.setcfg("metric", v ~= "auto" and v or nil) end),
-        S.input(api, "Target", manual, function(v) env.setcfg("target", v) end, {
+        S.input(api, T("Target"), manual, function(v) env.setcfg("target", v) end, {
             number = true, min = 1, max = 1000000, start = auto and auto.target or nil,
             step = (auto and auto.metric == "days") and 1 or 10,
             empty_label = "auto" .. (auto and (" (" .. A.thousands(auto.target) .. " " .. unit .. ")") or ""),
-            description = "How many " .. (unit ~= "" and unit or "pages, minutes or days") .. " to read this month.",
+            description = A.tr("How many %1 to read this month.", unit ~= "" and unit or T("pages, minutes or days")),
         }),
     }
     if manual then
-        rows[#rows + 1] = { { text = "Use the automatic target", callback = function()
+        rows[#rows + 1] = { { text = T("Use the automatic target"), callback = function()
             env.setcfg("target", nil)
             api.changed()
         end } }
     end
-    rows[#rows + 1] = S.header("Auto takes turns month by month and aims a little above your last three months.")
+    rows[#rows + 1] = S.header(T("Auto takes turns month by month and aims a little above your last three months."))
     return rows
 end
 
 ROWS.forecast = function(env, api)
     return {
-        S.header("Books listed"),
+        S.header(T("Books listed")),
         S.radio(api, { { 1, "1" }, { 2, "2" }, { 3, "3" } }, tonumber(env.cfg("count", 3)) or 3,
             function(v) env.setcfg("count", v) end),
     }
@@ -405,23 +399,23 @@ S.ICONS = GL
 
 -- need = a Device check the action needs to do anything here
 S.CONTROL_ACTIONS = {
-    { id = "toggle_wifi", label = "Wi-Fi", icon = GL.wifi, need = "hasWifiToggle" },
-    { id = "night_mode", label = "Night mode", icon = GL.night },
-    { id = "toggle_frontlight", label = "Light", icon = GL.bulb, need = "hasFrontlight" },
-    { id = "show_frontlight_dialog", label = "Light settings", icon = GL.sun, need = "hasFrontlight" },
-    { id = "toggle_rotation", label = "Rotate", icon = GL.rotate },
-    { id = "stats_calendar_view", label = "Calendar", icon = GL.calendar },
-    { id = "reading_progress", label = "Progress", icon = GL.chart },
-    { id = "suspend", label = "Sleep", icon = GL.sleep, need = "canSuspend" },
-    { id = "file_search", label = "Search", icon = GL.search },
-    { id = "open_previous_document", label = "Last book", icon = GL.book },
-    { id = "history", label = "History", icon = GL.history },
-    { id = "favorites", label = "Favorites", icon = GL.star },
-    { id = "collections", label = "Collections", icon = GL.library },
-    { id = "filemanager", label = "Files", icon = GL.folder },
-    { id = "full_refresh", label = "Refresh screen", icon = GL.refresh },
-    { id = "screenshot", label = "Screenshot", icon = GL.image },
-    { id = "restart", label = "Restart", icon = GL.power, need = "canRestart" },
+    { id = "toggle_wifi", label = T("Wi-Fi"), icon = GL.wifi, need = "hasWifiToggle" },
+    { id = "night_mode", label = T("Night mode"), icon = GL.night },
+    { id = "toggle_frontlight", label = T("Light"), icon = GL.bulb, need = "hasFrontlight" },
+    { id = "show_frontlight_dialog", label = T("Light settings"), icon = GL.sun, need = "hasFrontlight" },
+    { id = "toggle_rotation", label = T("Rotate"), icon = GL.rotate },
+    { id = "stats_calendar_view", label = T("Calendar"), icon = GL.calendar },
+    { id = "reading_progress", label = T("Progress"), icon = GL.chart },
+    { id = "suspend", label = T("Sleep"), icon = GL.sleep, need = "canSuspend" },
+    { id = "file_search", label = T("Search"), icon = GL.search },
+    { id = "open_previous_document", label = T("Last book"), icon = GL.book },
+    { id = "history", label = T("History"), icon = GL.history },
+    { id = "favorites", label = T("Favorites"), icon = GL.star },
+    { id = "collections", label = T("Collections"), icon = GL.library },
+    { id = "filemanager", label = T("Files"), icon = GL.folder },
+    { id = "full_refresh", label = T("Refresh screen"), icon = GL.refresh },
+    { id = "screenshot", label = T("Screenshot"), icon = GL.image },
+    { id = "restart", label = T("Restart"), icon = GL.power, need = "canRestart" },
 }
 
 local function deviceCan(need)
@@ -441,7 +435,7 @@ function S.controlChoices()
         end
     end
     for _, qa in ipairs(A.host.quickActions()) do
-        out[#out + 1] = { { label = qa.label, icon = GL.puzzle, qa = qa.id }, GL.puzzle .. "  Quick action: " .. qa.label }
+        out[#out + 1] = { { label = qa.label, icon = GL.puzzle, qa = qa.id }, GL.puzzle .. "  " .. A.tr("Quick action: %1", qa.label) }
     end
     return out
 end
@@ -465,13 +459,13 @@ function S.controlButton(ctx, i, back)
         A.setControlButton(i, copy)
         S.reload(ctx)
     end
-    S.open(ctx, "Button " .. i, function(api)
+    S.open(ctx, A.tr("Button %1", i), function(api)
         local e = current()
         local rows = {}
-        rows[#rows + 1] = S.header((e.icon and (e.icon .. "  ") or "") .. tostring(e.label or "an action"))
-        rows[#rows + 1] = { { text = "Action" .. ELLIPSIS, callback = function()
+        rows[#rows + 1] = S.header((e.icon and (e.icon .. "  ") or "") .. tostring(e.label or T("an action")))
+        rows[#rows + 1] = { { text = T("Action") .. ELLIPSIS, callback = function()
             api.close()
-            S.open(ctx, "Button " .. i .. ": action", function(sub)
+            S.open(ctx, A.tr("Button %1: action", i), function(sub)
                 local list = {}
                 for _, opt in ipairs(S.controlChoices()) do
                     list[#list + 1] = { {
@@ -491,9 +485,9 @@ function S.controlButton(ctx, i, back)
                 return list
             end)
         end } }
-        rows[#rows + 1] = { { text = "Icon" .. ELLIPSIS, callback = function()
+        rows[#rows + 1] = { { text = T("Icon") .. ELLIPSIS, callback = function()
             api.close()
-            S.open(ctx, "Button " .. i .. ": icon", function(sub)
+            S.open(ctx, A.tr("Button %1: icon", i), function(sub)
                 local list, line = {}, {}
                 for _, name in ipairs(S.ICON_ORDER) do
                     local g = GL[name]
@@ -509,13 +503,13 @@ function S.controlButton(ctx, i, back)
                 return list
             end)
         end } }
-        rows[#rows + 1] = S.input(api, "Name", e.label or "", function(v) changed({ label = v }) end)
-        rows[#rows + 1] = { { text = "Put this button back as it came", callback = function()
+        rows[#rows + 1] = S.input(api, T("Name"), e.label or "", function(v) changed({ label = v }) end)
+        rows[#rows + 1] = { { text = T("Put this button back as it came"), callback = function()
             A.setControlButton(i, nil)
             api.changed()
         end } }
         if back then
-            rows[#rows + 1] = { { text = tr("Back"), callback = function() api.close(); back() end } }
+            rows[#rows + 1] = { { text = T("Back"), callback = function() api.close(); back() end } }
         end
         return rows
     end)
@@ -529,64 +523,64 @@ ROWS.control = function(env, api, ctx)
     -- as a menu, one choice of all eight
     four._sui.options = { { 1, "1" }, { 2, "2" }, { 3, "3" }, { 4, "4" }, { 5, "5" }, { 6, "6" }, { 7, "7" }, { 8, "8" } }
     eight._sui = { kind = "skip" }
-    local rows = { S.header("Buttons"), four, eight }
+    local rows = { S.header(T("Buttons")), four, eight }
     local list = A.controlButtons(count)
     -- from a settings menu the dialog closes back to the menu
     local back = (not api.menu) and function()
         S.card("control", ctx, function() return A.makeEnv("control", ctx, 0, 0) end)
     end or nil
     for i = 1, count do
-        rows[#rows + 1] = { { text = i .. ". " .. tostring(list[i].label or "an action") .. ELLIPSIS, callback = function()
+        rows[#rows + 1] = { { text = i .. ". " .. tostring(list[i].label or T("an action")) .. ELLIPSIS, callback = function()
             api.close()
             S.controlButton(ctx, i, back)
         end } }
     end
-    rows[#rows + 1] = S.header("Front light")
-    local bright = S.radio(api, { { true, "Brightness shown" }, { false, "Brightness hidden" } },
+    rows[#rows + 1] = S.header(T("Front light"))
+    local bright = S.radio(api, { { true, T("Brightness shown") }, { false, T("Brightness hidden") } },
         env.cfg("brightness", true) ~= false, function(v) if v then env.setcfg("brightness", nil) else env.setcfg("brightness", false) end end)
-    local warm = S.radio(api, { { true, "Warmth shown" }, { false, "Warmth hidden" } },
+    local warm = S.radio(api, { { true, T("Warmth shown") }, { false, T("Warmth hidden") } },
         env.cfg("warmth", true) ~= false, function(v) if v then env.setcfg("warmth", nil) else env.setcfg("warmth", false) end end)
-    bright._sui.title, warm._sui.title = "Brightness", "Warmth"
+    bright._sui.title, warm._sui.title = T("Brightness"), T("Warmth")
     rows[#rows + 1] = bright
     rows[#rows + 1] = warm
     return rows
 end
 
 ROWS.mini = function(env, api, ctx)
-    local options = { { "none", "Nothing" } }
+    local options = { { "none", T("Nothing") } }
     for _, k in ipairs(A.MINI_TILES) do options[#options + 1] = { k, A.MINI_LABEL[k] } end
-    local rows = { S.header("Small cards, left to right (as many as fit)") }
+    local rows = { S.header(T("Small cards, left to right (as many as fit)")) }
     for i = 1, A.MINI_MAX do
-        rows[#rows + 1] = S.pick(ctx, api, "Card " .. i, options, env.cfg("tile" .. i, A.MINI_DEFAULT[i] or "none"),
+        rows[#rows + 1] = S.pick(ctx, api, T("Card ") .. i, options, env.cfg("tile" .. i, A.MINI_DEFAULT[i] or "none"),
             function(v) env.setcfg("tile" .. i, v) end)
     end
-    local control = { { text = "Control centre buttons" .. ELLIPSIS, callback = function()
+    local control = { { text = T("Control centre buttons") .. ELLIPSIS, callback = function()
         api.close()
         S.card("control", ctx, function() return A.makeEnv("control", ctx, 0, 0) end)
     end } }
     -- as a menu: the Control centre's own settings, one level down
-    control._sui = { kind = "submenu", label = "Control centre buttons",
+    control._sui = { kind = "submenu", label = T("Control centre buttons"),
         rows_fn = function() return ROWS.control(A.makeEnv("control", ctx, 0, 0), api, ctx) end }
     rows[#rows + 1] = control
-    rows[#rows + 1] = S.header("Rings goals, the challenge and the buttons are shared with their own cards.")
+    rows[#rows + 1] = S.header(T("Rings goals, the challenge and the buttons are shared with their own cards."))
     return rows
 end
 
 ROWS.compare = function(env, api)
     return {
-        S.header("Compare"),
-        S.radio(api, { { "week", "This week" }, { "month", "This month" }, { "year", "This year" } },
+        S.header(T("Compare")),
+        S.radio(api, { { "week", T("This week") }, { "month", T("This month") }, { "year", T("This year") } },
             env.cfg("period", "week"), function(v) env.setcfg("period", v ~= "week" and v or nil) end),
-        S.header("Shows"),
-        S.radio(api, { { "time", "Time read" }, { "pages", "Pages" }, { "both", "Both" } },
+        S.header(T("Shows")),
+        S.radio(api, { { "time", T("Time read") }, { "pages", T("Pages") }, { "both", T("Both") } },
             env.cfg("show", "time"), function(v) env.setcfg("show", v ~= "time" and v or nil) end),
     }
 end
 
 ROWS.library = function(env, api)
     return {
-        S.header("Counts every book in your home folder, every 15 minutes at most."),
-        { { text = "Count again now", callback = function()
+        S.header(T("Counts every book in your home folder, every 15 minutes at most.")),
+        { { text = T("Count again now"), callback = function()
             D.recountLibrary()
             api.changed()
         end } },
@@ -595,10 +589,10 @@ end
 
 ROWS.authors = function(env, api)
     return {
-        S.header("Most read by"),
-        S.radio(api, { { "books", "Books finished" }, { "time", "Time read" } }, env.cfg("by", "books"),
+        S.header(T("Most read by")),
+        S.radio(api, { { "books", T("Books finished") }, { "time", T("Time read") } }, env.cfg("by", "books"),
             function(v) env.setcfg("by", v ~= "books" and v or nil) end),
-        S.header("Authors listed"),
+        S.header(T("Authors listed")),
         S.radio(api, { { 3, "3" }, { 5, "5" }, { 8, "8" } }, tonumber(env.cfg("count", 5)) or 5,
             function(v) env.setcfg("count", v ~= 5 and v or nil) end),
     }
@@ -613,23 +607,23 @@ ROWS.pick = function(env, api, ctx)
     end
     local function choose(key) return function(v) env.setcfg(key, v) end end
     return {
-        S.header("A new pick"),
-        S.radio(api, { { "day", "Every day" }, { "week", "Every week" }, { "month", "Every month" }, { "tap", "When I tap Another" } },
+        S.header(T("A new pick")),
+        S.radio(api, { { "day", T("Every day") }, { "week", T("Every week") }, { "month", T("Every month") }, { "tap", T("When I tap Another") } },
             env.cfg("every", "week"), function(v) env.setcfg("every", v ~= "week" and v or nil) end),
-        S.pick(ctx, api, "Pick from", collectionOptions("The whole library"), env.cfg("coll", ""), choose("coll")),
-        S.multi(ctx, api, "Only these genres", values("genres"), env.cfg("genres", nil), choose("genres"), "Any genre"),
-        S.multi(ctx, api, "Only these authors", values("authors"), env.cfg("authors", nil), choose("authors"), "Any author"),
-        S.header("Only books you haven't started. In a series, only the next one."),
-        S.header("Tapping the cover"),
-        S.radio(api, { { "open", "Opens the book" }, { "details", "Shows book details" } },
+        S.pick(ctx, api, T("Pick from"), collectionOptions(T("The whole library")), env.cfg("coll", ""), choose("coll")),
+        S.multi(ctx, api, T("Only these genres"), values("genres"), env.cfg("genres", nil), choose("genres"), T("Any genre")),
+        S.multi(ctx, api, T("Only these authors"), values("authors"), env.cfg("authors", nil), choose("authors"), T("Any author")),
+        S.header(T("Only books you haven't started. In a series, only the next one.")),
+        S.header(T("Tapping the cover")),
+        S.radio(api, { { "open", T("Opens the book") }, { "details", T("Shows book details") } },
             env.cfg("tap", "open"), function(v) env.setcfg("tap", v ~= "open" and v or nil) end),
     }
 end
 
 ROWS.quote = function(env, api)
     return {
-        S.header("A new highlight from your books each day."),
-        { { text = "Show another quote", callback = function()
+        S.header(T("A new highlight from your books each day.")),
+        { { text = T("Show another quote"), callback = function()
             D.nextQuote()
             api.changed()
         end } },
@@ -638,15 +632,15 @@ end
 
 ROWS.week = function(env, api)
     return {
-        S.header("Bars show"),
-        S.radio(api, { { "pages", "Pages" }, { "minutes", "Minutes" } }, env.cfg("metric", "pages"),
+        S.header(T("Bars show")),
+        S.radio(api, { { "pages", T("Pages") }, { "minutes", T("Minutes") } }, env.cfg("metric", "pages"),
             function(v) env.setcfg("metric", v) end),
     }
 end
 
 ROWS.finished = function(env, api)
     return {
-        S.header("Covers in the row"),
+        S.header(T("Covers in the row")),
         S.radio(api, { { 4, "4" }, { 5, "5" }, { 6, "6" }, { 8, "8" } }, tonumber(env.cfg("count", 6)) or 6,
             function(v) env.setcfg("count", v) end),
     }
@@ -665,17 +659,17 @@ ROWS.deadline = function(env, api, ctx)
     end
     local today = A.todayYmd()
     return {
-        S.pick(ctx, api, "Book", books, cur, function(v)
+        S.pick(ctx, api, T("Book"), books, cur, function(v)
             env.setcfg("book", v)
             env.setcfg("since", today)
         end),
-        S.date(api, "Finish by", env.cfg("due", ""), function(v)
+        S.date(api, T("Finish by"), env.cfg("due", ""), function(v)
             env.setcfg("due", v)
             if env.cfg("since", "") == "" then env.setcfg("since", today) end
         end),
-        S.input(api, "For", env.cfg("label", "Finish by"), function(v) env.setcfg("label", v) end,
-            { hint = "e.g. Library loan", empty_label = "(no label)" }),
-        S.date(api, "Counting from", env.cfg("since", ""), function(v) env.setcfg("since", v) end),
+        S.input(api, T("For"), env.cfg("label", T("Finish by")), function(v) env.setcfg("label", v) end,
+            { hint = T("e.g. Library loan"), empty_label = T("(no label)") }),
+        S.date(api, T("Counting from"), env.cfg("since", ""), function(v) env.setcfg("since", v) end),
     }
 end
 
@@ -686,7 +680,7 @@ local function clubPicks(ctx, env, back)
     local function show()
         local key, when = P.bookclub.monthKey(offset)
         local label = A.date("%B", when) .. " " .. os.date("%Y", when)
-        S.open(ctx, "Book club picks", function(sub)
+        S.open(ctx, T("Book club picks"), function(sub)
             local st = P.bookclub.state(env)
             local all = env.cfg("picks", nil)
             if type(all) ~= "table" then all = {} end
@@ -718,9 +712,9 @@ local function clubPicks(ctx, env, back)
                 } }
             end
             if #books == 0 then
-                rows[#rows + 1] = S.header(st and "No books in the collection yet" or "No book club collection yet")
+                rows[#rows + 1] = S.header(st and T("No books in the collection yet") or T("No book club collection yet"))
             end
-            rows[#rows + 1] = { { text = tr("Back"), callback = function() sub.close(); back() end } }
+            rows[#rows + 1] = { { text = T("Back"), callback = function() sub.close(); back() end } }
             return rows
         end)
     end
@@ -730,23 +724,23 @@ end
 ROWS.bookclub = function(env, api, ctx)
     local _, when = P.bookclub.monthKey(0)
     return {
-        S.pick(ctx, api, "Collection", collectionOptions(), P.bookclub.collection(env),
+        S.pick(ctx, api, T("Collection"), collectionOptions(), P.bookclub.collection(env),
             function(v) env.setcfg("coll", v) end),
-        { { text = A.date("%B", when) .. "'s books" .. ELLIPSIS, callback = function()
+        { { text = A.tr("%1's books", A.date("%B", when)) .. ELLIPSIS, callback = function()
             api.close()
             clubPicks(ctx, env, api.again)
         end } },
-        S.input(api, "Title", env.cfg("title", "Book club"), function(v) env.setcfg("title", v) end,
-            { hint = "e.g. Book club", empty_label = "Book club" }),
+        S.input(api, T("Title"), env.cfg("title", T("Book club")), function(v) env.setcfg("title", v) end,
+            { hint = T("e.g. Book club"), empty_label = T("Book club") }),
     }
 end
 
 ROWS.week_rings = function(env, api)
     return {
-        S.input(api, "Pages a day", A.get("activity_page_goal", 30), function(v) A.set("activity_page_goal", v) end,
-            { number = true, min = 1, max = 2000, description = "Shared with the Activity rings card." }),
-        S.input(api, "Minutes a day", D.dailyMinutesGoal(), function(v) D.setDailyMinutesGoal(v) end,
-            { number = true, min = 1, max = 720, description = "Shared with Simple UI's Reading goals (daily goal)." }),
+        S.input(api, T("Pages a day"), A.get("activity_page_goal", 30), function(v) A.set("activity_page_goal", v) end,
+            { number = true, min = 1, max = 2000, description = T("Shared with the Activity rings card.") }),
+        S.input(api, T("Minutes a day"), D.dailyMinutesGoal(), function(v) D.setDailyMinutesGoal(v) end,
+            { number = true, min = 1, max = 720, description = T("Shared with Simple UI's Reading goals (daily goal).") }),
     }
 end
 
@@ -754,10 +748,10 @@ ROWS.month_rings = ROWS.week_rings
 
 ROWS.longest_year = function(env, api)
     return {
-        S.header("Longest by"),
-        S.radio(api, { { "time", "Time read" }, { "days", "Days taken" } }, env.cfg("by", "time"),
+        S.header(T("Longest by")),
+        S.radio(api, { { "time", T("Time read") }, { "days", T("Days taken") } }, env.cfg("by", "time"),
             function(v) env.setcfg("by", v) end),
-        S.header("How many"),
+        S.header(T("How many")),
         S.radio(api, { { 2, "2" }, { 3, "3" }, { 4, "4" }, { 5, "5" } }, tonumber(env.cfg("count", 3)) or 3,
             function(v) env.setcfg("count", v) end),
     }
@@ -766,16 +760,16 @@ ROWS.longest_month = ROWS.longest_year
 
 ROWS.month_chart = function(env, api)
     return {
-        S.header("Bars show"),
-        S.radio(api, { { "pages", "Pages read" }, { "time", "Time read" } }, env.cfg("metric", "pages"),
+        S.header(T("Bars show")),
+        S.radio(api, { { "pages", T("Pages read") }, { "time", T("Time read") } }, env.cfg("metric", "pages"),
             function(v) env.setcfg("metric", v) end),
     }
 end
 
 ROWS.year_chart = function(env, api)
     return {
-        S.header("Pages counted"),
-        S.radio(api, { { "read", "Read that month" }, { "books", "Of the books finished" } },
+        S.header(T("Pages counted")),
+        S.radio(api, { { "read", T("Read that month") }, { "books", T("Of the books finished") } },
             env.cfg("pages", "read"), function(v) env.setcfg("pages", v) end),
     }
 end
@@ -812,48 +806,48 @@ local function accentPicker(ctx, title, key, current, auto_label, back)
             if #row == 3 then rows[#rows + 1] = row; row = {} end
         end
         if #row > 0 then rows[#rows + 1] = row end
-        rows[#rows + 1] = { { text = tr("Back"), callback = function() api.close(); back() end } }
+        rows[#rows + 1] = { { text = T("Back"), callback = function() api.close(); back() end } }
         return rows
     end, true)
 end
 
 function S.look(ctx, back)
     local function again() S.look(ctx, back) end
-    S.open(ctx, "Look and colours", function(api)
+    S.open(ctx, T("Look and colours"), function(api)
         local themes = {}
         for _, id in ipairs(A.THEME_ORDER) do themes[#themes + 1] = { id, A.THEMES[id].label } end
         local a1, a2 = A.accentIds()
         local matched = A.get("accent2", nil) == nil
         local rows = {
-            S.header("Theme"),
+            S.header(T("Theme")),
             S.radio(api, themes, A.themeId(), function(v) A.set("theme", v) end),
             -- Two accent colours, used for labels, rings, bars and buttons.
             -- A card's own "Card colour" setting decides which of the two leads.
-            { { text = "Accent colour: " .. A.ACCENTS[a1].label, callback = function()
+            { { text = T("Accent colour: ") .. A.ACCENTS[a1].label, callback = function()
                 api.close()
-                accentPicker(ctx, "Accent colour", "accent", a1, nil, again)
+                accentPicker(ctx, T("Accent colour"), "accent", a1, nil, again)
             end } },
-            { { text = "Second accent: " .. A.ACCENTS[a2].label .. (matched and " (matched)" or ""), callback = function()
+            { { text = T("Second accent: ") .. A.ACCENTS[a2].label .. (matched and T(" (matched)") or ""), callback = function()
                 api.close()
-                accentPicker(ctx, "Second accent", "accent2", (not matched) and a2 or nil,
-                    "Matched to the first", again)
+                accentPicker(ctx, T("Second accent"), "accent2", (not matched) and a2 or nil,
+                    T("Matched to the first"), again)
             end } },
             -- Cards placed on their own on a Simple UI screen (not in the
             -- Dashboard): Simple UI's look, or the theme's frame.
-            S.header("Cards on their own"),
-            S.radio(api, { { "native", "Match Simple UI" }, { "framed", "Framed, in the theme" } },
+            S.header(T("Cards on their own")),
+            S.radio(api, { { "native", T("Match Simple UI") }, { "framed", T("Framed, in the theme") } },
                 A.standaloneNative() and "native" or "framed",
                 function(v) A.set("standalone", v ~= "native" and v or nil) end),
-            S.header("Week starts on"),
-            S.radio(api, { { 0, "Follow KOReader" }, { 2, "Monday" }, { 1, "Sunday" } },
+            S.header(T("Week starts on")),
+            S.radio(api, { { 0, T("Follow KOReader") }, { 2, T("Monday") }, { 1, T("Sunday") } },
                 tonumber(A.get("week_start", 0)) or 0, function(v) A.set("week_start", v ~= 0 and v or nil) end),
         }
-        rows[#rows + 1] = { { text = "Diagnostics" .. ELLIPSIS, callback = function()
+        rows[#rows + 1] = { { text = T("Diagnostics") .. ELLIPSIS, callback = function()
             api.close()
             S.diagnostics(ctx, again)
         end } }
         if back then
-            rows[#rows + 1] = { { text = tr("Back"), callback = function() api.close(); back() end } }
+            rows[#rows + 1] = { { text = T("Back"), callback = function() api.close(); back() end } }
         end
         return rows
     end, true)
@@ -863,13 +857,13 @@ end
 -- tell why something looks or refreshes the way it does on a screen nobody
 -- but the reader can see. Nothing is changed by opening it.
 function S.diagnostics(ctx, back)
-    local function yn(v) return v and "on" or "off" end
+    local function yn(v) return v and T("on") or T("off") end
     local function safe(fn, fallback)
         local ok, v = pcall(fn)
         if ok and v ~= nil then return v end
         return fallback
     end
-    S.open(ctx, A.NAME .. " diagnostics", function(api)
+    S.open(ctx, A.NAME .. T(" diagnostics"), function(api)
         local Screen = A.screen()
         local Device = safe(function() return require("device") end, {})
         local ko = safe(function() return require("version"):getCurrentRevision() end, "?")
@@ -879,9 +873,9 @@ function S.diagnostics(ctx, back)
             A.NAME .. " " .. A.VERSION .. "  \xC2\xB7  Simple UI " .. tostring(host_v),
             "KOReader " .. tostring(ko),
             tostring(Device.model or "?") .. "  \xC2\xB7  " .. Screen:getWidth() .. "x" .. Screen:getHeight()
-                .. "  \xC2\xB7  colour " .. yn(safe(function() return Screen:isColorEnabled() end, false)),
-            "Night mode " .. yn(Screen.night_mode) .. "  \xC2\xB7  page looks " .. (A.pageLooksDark() and "dark" or "light"),
-            "Hardware dithering " .. yn(Screen.hw_dithering) .. "  \xC2\xB7  avoid flashes "
+                .. T("  \xC2\xB7  colour ") .. yn(safe(function() return Screen:isColorEnabled() end, false)),
+            T("Night mode ") .. yn(Screen.night_mode) .. T("  \xC2\xB7  page looks ") .. (A.pageLooksDark() and T("dark") or T("light")),
+            T("Hardware dithering ") .. yn(Screen.hw_dithering) .. T("  \xC2\xB7  avoid flashes ")
                 .. yn(safe(function() return G_reader_settings:isTrue("avoid_flashing_ui") end, false)),
             "Theme " .. A.themeId() .. "  \xC2\xB7  cards on their own: " .. (A.standaloneNative() and "Simple UI look" or "framed"),
             "Settings file: " .. tostring(safe(function() return require("datastorage"):getSettingsDir() end, "?")) .. "/readinglog.lua",
@@ -889,12 +883,12 @@ function S.diagnostics(ctx, back)
         }
         local rows = {}
         for _, l in ipairs(lines) do rows[#rows + 1] = S.header(l) end
-        rows[#rows + 1] = { { text = "Flash the screen clean now", callback = function()
+        rows[#rows + 1] = { { text = T("Flash the screen clean now"), callback = function()
             api.close()
             A.cleanScreen()
         end } }
         if back then
-            rows[#rows + 1] = { { text = tr("Back"), callback = function() api.close(); back() end } }
+            rows[#rows + 1] = { { text = T("Back"), callback = function() api.close(); back() end } }
         end
         return rows
     end)
@@ -904,15 +898,15 @@ end
 -- month's books, the reading calendar), the reading calendar or progress,
 -- or any of Simple UI's Quick Actions.
 local BUILTIN_TAPS = {
-    { id = "stats_calendar_view", label = "Reading calendar" },
-    { id = "reading_progress", label = "Reading progress" },
+    { id = "stats_calendar_view", label = T("Reading calendar") },
+    { id = "reading_progress", label = T("Reading progress") },
 }
 S.BUILTIN_TAPS = BUILTIN_TAPS
 
 function S.tapLabel(name)
     local e = A.tapAction(name)
-    if not e then return "the card's own" end
-    return e.label or "an action"
+    if not e then return T("the card's own") end
+    return e.label or T("an action")
 end
 
 -- The current choice as one value: "own", a dispatcher name, or "qa:<id>".
@@ -937,29 +931,29 @@ end
 -- { { value, label } } for every choice.
 function S.tapOptions(name)
     local def = P[name]
-    local out = { { "own", "The card's own: " .. (def and def.does or "as it comes") } }
+    local out = { { "own", A.tr("The card's own: %1", def and def.does or T("as it comes")) } }
     for _, b in ipairs(BUILTIN_TAPS) do out[#out + 1] = { b.id, b.label } end
     for _, qa in ipairs(A.host.quickActions()) do
-        out[#out + 1] = { "qa:" .. qa.id, "Quick action: " .. qa.label }
+        out[#out + 1] = { "qa:" .. qa.id, A.tr("Quick action: %1", qa.label), qa.label }
     end
     return out
 end
 
 function S.tapChooser(ctx, name, back)
     local def = P[name]
-    S.open(ctx, def.title .. ": when tapped", function(api)
+    S.open(ctx, A.tr("%1: when tapped", def.title), function(api)
         local cur = S.tapValue(name)
         local rows = {}
         for _, opt in ipairs(S.tapOptions(name)) do
             rows[#rows + 1] = { { text = ((opt[1] == cur) and CHECK or "") .. shorten(opt[2], 44), callback = function()
-                S.setTapValue(name, opt[1], opt[2]:gsub("^Quick action: ", ""))
+                S.setTapValue(name, opt[1], opt[3] or opt[2])
                 api.close()
                 if back then back() end
             end } }
         end
-        rows[#rows + 1] = S.header("Buttons on the card (Continue, Details, the tabs) keep their own job.")
+        rows[#rows + 1] = S.header(T("Buttons on the card (Continue, Details, the tabs) keep their own job."))
         if back then
-            rows[#rows + 1] = { { text = tr("Back"), callback = function() api.close(); back() end } }
+            rows[#rows + 1] = { { text = T("Back"), callback = function() api.close(); back() end } }
         end
         return rows
     end)
@@ -975,12 +969,12 @@ function S.card(name, ctx, env_fn, back)
             local env = env_fn()
             local rows = ROWS[name] and ROWS[name](env, api, ctx) or {}
             if def.slots and not env.nested and ctx and ctx.config then
-                rows[#rows + 1] = S.header("This card shows")
+                rows[#rows + 1] = S.header(T("This card shows"))
                 local row = {}
                 for i = 1, 3 do
                     local active = env.slot == i
                     row[#row + 1] = {
-                        text = (active and CHECK or "") .. "Set " .. i,
+                        text = (active and CHECK or "") .. A.tr("Set %1", i),
                         callback = function()
                             if active then return end
                             api.close()
@@ -993,22 +987,22 @@ function S.card(name, ctx, env_fn, back)
                 rows[#rows + 1] = row
             end
             if name ~= "dashboard" then
-                rows[#rows + 1] = { { text = "When tapped: " .. S.tapLabel(name) .. ELLIPSIS, callback = function()
+                rows[#rows + 1] = { { text = T("When tapped: ") .. S.tapLabel(name) .. ELLIPSIS, callback = function()
                     api.close()
                     S.tapChooser(ctx, name, show)
                 end } }
             end
-            rows[#rows + 1] = S.header("Card colour")
+            rows[#rows + 1] = S.header(T("Card colour"))
             local tones = toneOptions()
             local function pickTone(v) A.set(name .. "_tone", v) end
             rows[#rows + 1] = S.radio(api, { tones[1], tones[2] }, env.tone.name, pickTone)
             rows[#rows + 1] = S.radio(api, { tones[3], tones[4] }, env.tone.name, pickTone)
-            rows[#rows + 1] = { { text = "Look and colours" .. ELLIPSIS, callback = function()
+            rows[#rows + 1] = { { text = T("Look and colours") .. ELLIPSIS, callback = function()
                 api.close()
                 S.look(ctx, show)
             end } }
             if back then
-                rows[#rows + 1] = { { text = tr("Back"), callback = function() api.close(); back() end } }
+                rows[#rows + 1] = { { text = T("Back"), callback = function() api.close(); back() end } }
             end
             return rows
         end)

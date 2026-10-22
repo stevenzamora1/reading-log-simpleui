@@ -233,6 +233,24 @@ function H.face(size, o)
     return Font:getFace(o.bold and "tfont" or "cfont", size), false
 end
 
+-- ─── wallpaper ───────────────────────────────────────────────────────────────
+
+--- Whether Simple UI shows its wallpaper through this module: a wallpaper is
+--- on and the module's Background Opacity is below Solid. The Dashboard then
+--- leaves its page unpainted, so the wallpaper shows between its cards.
+function H.seeThrough(pfx, id)
+    local WP = try("features/sui_wallpaper")
+    if not (WP and WP.getModuleBackdropStrength) then return false end
+    local ok, active = pcall(function()
+        if WP.isWallpaperActive then return WP.isWallpaperActive() end
+        return WP.styleGetBgWidget and WP.styleGetBgWidget() ~= nil
+    end)
+    if not (ok and active) then return false end
+    local ok2, strength = pcall(WP.getModuleBackdropStrength, pfx or "simpleui_hs_", id)
+    strength = ok2 and tonumber(strength) or 100
+    return strength < 100
+end
+
 -- ─── colours ─────────────────────────────────────────────────────────────────
 
 -- type(), not `c == nil`: a colour is FFI cdata, and == on cdata runs

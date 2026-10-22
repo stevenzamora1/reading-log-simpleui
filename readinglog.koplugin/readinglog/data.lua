@@ -16,6 +16,7 @@ All host calls go through A.host (host.lua).
 ]]
 
 local A = ...
+local T = A._
 local D = {}
 A.D = D
 
@@ -972,18 +973,18 @@ local rawSessions = deferred("sessions", {
 D.TREND_RECENT, D.TREND_DAYS = TREND_RECENT, TREND_DAYS
 
 local TREND_DEFS = {
-    { id = "time",    name = "Time read",      unit = "min/day",
-      hint = "A short session before bed would bring this back up." },
-    { id = "pages",   name = "Pages",          unit = "pages/day",
-      hint = "A few extra pages a day adds up fast." },
-    { id = "days",    name = "Reading days",   unit = "days/week",
-      hint = "Try ten minutes on the days you usually skip." },
-    { id = "session", name = "Session length", unit = "min/session",
-      hint = "Your sittings are shorter lately. One long read a week helps." },
-    { id = "speed",   name = "Reading speed",  unit = "pages/hr",
-      hint = "Slower pages can just mean a denser book." },
-    { id = "books",   name = "Books finished", unit = "books/month",
-      hint = "A couple of shorter reads would bring this back up." },
+    { id = "time",    name = T("Time read"),      unit = T("min/day"),
+      hint = T("A short session before bed would bring this back up.") },
+    { id = "pages",   name = T("Pages"),          unit = T("pages/day"),
+      hint = T("A few extra pages a day adds up fast.") },
+    { id = "days",    name = T("Reading days"),   unit = T("days/week"),
+      hint = T("Try ten minutes on the days you usually skip.") },
+    { id = "session", name = T("Session length"), unit = T("min/session"),
+      hint = T("Your sittings are shorter lately. One long read a week helps.") },
+    { id = "speed",   name = T("Reading speed"),  unit = T("pages/hr"),
+      hint = T("Slower pages can just mean a denser book.") },
+    { id = "books",   name = T("Books finished"), unit = T("books/month"),
+      hint = T("A couple of shorter reads would bring this back up.") },
 }
 D.TREND_DEFS = TREND_DEFS
 
@@ -1084,7 +1085,7 @@ end
 -- yet is left out, so the morning does not drag the average down.
 
 local PERIOD_WORDS = {
-    week = { "this week", "last week" }, month = { "this month", "last month" }, year = { "this year", "last year" },
+    week = { T("this week"), T("last week") }, month = { T("this month"), T("last month") }, year = { T("this year"), T("last year") },
 }
 
 --- Pure. days = { ["YYYY-MM-DD"] = {pages, secs} }, period "week"|"month"|"year",
@@ -1139,23 +1140,24 @@ function D.compareFrom(days, period, metric, now, ws, first_n)
     if n == 0 and last and today_v > last then sum, n = today_v, 1 end
     local this = n > 0 and sum / n or nil
     local words = PERIOD_WORDS[period]
-    local unit = metric == "pages" and "pages" or "minutes"
+    local unit = T(metric == "pages" and "pages" or "minutes")
     local sentence, dir
     if not this then
-        sentence = "This " .. period .. " has only just started."
+        sentence = ({ week = T("This week has only just started."),
+            month = T("This month has only just started."), year = T("This year has only just started.") })[period]
     elseif not last then
-        sentence = "Nothing to compare with " .. words[2] .. " yet."
+        sentence = A.tr("Nothing to compare with %1 yet.", words[2])
     elseif last == 0 and this == 0 then
-        sentence = "Nothing read " .. words[1] .. " or " .. words[2] .. " yet."
+        sentence = A.tr("Nothing read %1 or %2 yet.", words[1], words[2])
     elseif this > last * 1.03 then
         dir = "up"
-        sentence = "You're averaging more " .. unit .. " a day " .. words[1] .. " than " .. words[2] .. "."
+        sentence = A.tr("You're averaging more %1 a day %2 than %3.", unit, words[1], words[2])
     elseif this < last * 0.97 then
         dir = "down"
-        sentence = "You're averaging fewer " .. unit .. " a day " .. words[1] .. " than " .. words[2] .. "."
+        sentence = A.tr("You're averaging fewer %1 a day %2 than %3.", unit, words[1], words[2])
     else
         dir = "same"
-        sentence = "You're averaging about as many " .. unit .. " a day " .. words[1] .. " as " .. words[2] .. "."
+        sentence = A.tr("You're averaging about as many %1 a day %2 as %3.", unit, words[1], words[2])
     end
     -- what to call the two bars
     local label_this, label_last
@@ -1165,7 +1167,7 @@ function D.compareFrom(days, period, metric, now, ws, first_n)
         label_this = A.date("%B", os.time{ year = now.year, month = now.month, day = 1, hour = 12 })
         label_last = A.date("%B", os.time{ year = now.year, month = now.month - 1, day = 1, hour = 12 })
     else
-        label_this, label_last = "This week", "Last week"
+        label_this, label_last = T("This week"), T("Last week")
     end
     return { period = period, metric = metric, this = this, last = last, dir = dir, sentence = sentence,
         label_this = label_this, label_last = label_last, days_this = n, days_last = ln }
@@ -1410,7 +1412,7 @@ end
 
 function D.collectionLabel(name)
     local ok, RC = pcall(require, "readcollection")
-    if ok and RC and name == RC.default_collection_name then return "Favorites" end
+    if ok and RC and name == RC.default_collection_name then return T("Favorites") end
     return name
 end
 
@@ -1933,7 +1935,7 @@ function D.openBook(ctx, fp)
     if not D.fileExists(fp) then
         pcall(function()
             require("ui/uimanager"):show(require("ui/widget/notification"):new{
-                text = "That file is no longer on the device",
+                text = T("That file is no longer on the device"),
             })
         end)
         return
