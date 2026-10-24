@@ -4,9 +4,9 @@
 
 Activity rings, monthly and yearly charts, reading trends, a monthly
 challenge, finish forecasts, library stats, a random pick from your unread
-books, your own highlights, a Control centre and more: the same 31 cards, the
+books, your own highlights, a Control centre and more: the same 36 cards, the
 Mini dashboard and the tabbed Dashboard (Today, Yearly, Monthly, Trends,
-Library) as [Reading Log for Bookshelf](https://github.com/stevenzamora1/reading-log),
+Library, Calendar) as [Reading Log for Bookshelf](https://github.com/stevenzamora1/reading-log),
 running as [Simple UI](https://github.com/doctorhetfield-cmd/simpleui.koplugin)
 modules instead of Bookshelf micro-modules.
 
@@ -55,6 +55,14 @@ Simple UI's own modules, two side by side if you set their Column Width to
 
 Long-press any card for its settings.
 
+New in 1.3: the **Cover calendar** (with its own Calendar tab) and **Week in
+covers**, **Quote of the day 2, 3 and 4**, **Style: Default or Cute** (hearts
+instead of rings, a flower for the Monthly challenge, a garden for the Book
+club, a jar of hearts for the Year goal, notebook paper, polaroids, a
+scrapbook, sticky notes, cozy charts, a sky timeline and a desk calendar
+forecast), pictures of your own on Control centre buttons, solid cards over
+a see-through wallpaper, faster redraws, and no flash when you turn a tab.
+
 New in 1.2: **Spanish, French, Brazilian Portuguese and Italian** (numbers,
 dates and plurals follow your language too), the Dashboard follows Simple
 UI's wallpaper Background Opacity, and **Check for updates** in the Reading
@@ -81,13 +89,13 @@ New in 1.1:
 the top of the home screen. It starts with the book you're reading and
 today's rings, then the Control centre. Long-press > Content to pick other
 small cards: Continue reading, Activity rings, This week vs last, Week rings,
-Monthly challenge, Finish forecast, Year goal, Today's timeline, Random pick,
+Week in covers, Monthly challenge, Finish forecast, Year goal, Today's timeline, Random pick,
 Quote of the day or Library stats. As many as fit the width are shown.
 
 ## Set up the Dashboard
 
 The Dashboard puts the cards together as tabbed pages (Today, Yearly,
-Monthly, Trends and Library), and is meant to fill a screen on its own.
+Monthly, Trends, Library and Calendar), and is meant to fill a screen on its own.
 
 1. Simple UI Settings > **Extra Custom Screens**: create one (call it
    "Reading Log", say). Simple UI gives it a Quick Action, so you can put it
@@ -102,7 +110,7 @@ page follows.
 
 Change the pages with long-press > Content > **Pages and cards…**: any card on
 any page, a row of one card or two, each row's height, tab names, pages shown
-or hidden, **+ Add a page** (up to 7 tabs), **Move tab left / right**, and
+or hidden, **+ Add a page** (up to 8 tabs), **Move tab left / right**, and
 **Remove this page** for pages you added. **Put the whole Dashboard back as it
 came…** resets every page, tab and row, and keeps each card's settings and
 the colours.
@@ -120,7 +128,7 @@ Column Width:
   at), **Text size** (70–150%: small text grows fully, big figures and titles
   by half), **Card colour** (plain or tinted, which accent leads), and **Look and
   colours** for all cards at once: theme (White, Dark or Paper), two accent
-  colours from twelve, how cards look on their own (matching Simple UI, or
+  colours from twelve, Style (Default or Cute), how cards look on their own (matching Simple UI, or
   framed in the theme), the day the week starts on, and Diagnostics.
 - **When tapped**: the card's own action, the reading calendar, reading
   progress, or any of Simple UI's Quick Actions (including your own).
@@ -129,7 +137,8 @@ Column Width:
 **Control centre buttons:** long-press > Content > tap a button. **Action…**
 picks a KOReader action (Wi-Fi, night mode, light, rotate, calendar, sleep,
 search, last book, history, favorites, …) or any Simple UI Quick Action;
-**Icon…** picks one of 37 icons; **Name** renames it. The Mini dashboard's
+**Icon…** picks one of 37 icons, or **Use a picture** shows a PNG or JPEG of
+your own; **Name** renames it. The Mini dashboard's
 Control centre uses the same buttons.
 
 ## Languages
@@ -151,8 +160,9 @@ With a Simple UI wallpaper on, the Dashboard follows its **Background
 Opacity** (long-press > Background): below Solid, the Dashboard's page is
 left clear so the wallpaper shows around and between the cards. The cards
 and the tab bar stay solid so they stay readable, and the date, time and
-page titles at the top get a framed plate behind them. Cards on their own that
-match Simple UI already draw no background of their own.
+page titles at the top get a framed plate behind them. Cards on their own do
+the same: below Solid, each is drawn as a solid card with the wallpaper
+around it, so its text never sits straight on the picture.
 
 ## Shared with Simple UI
 

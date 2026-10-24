@@ -396,6 +396,15 @@ local function accentOptions(with_matched)
     return out
 end
 
+-- Default or Cute: every cute look at once (shows neither when some cards
+-- have a look of their own).
+local function styleItem(after)
+    return radioItem(T("Style"),
+        function() return { { "default", T("Default") }, { "cute", T("Cute") } } end,
+        A.styleNow, A.setStyle, after)
+end
+S.styleItem = styleItem
+
 --- "Look and colours": the theme and accents every card shares.
 function S.lookMenu(mctx)
     local function after() S.reloadAll(mctx) end
@@ -407,6 +416,7 @@ function S.lookMenu(mctx)
             return {
                 radioItem(T("Theme"), function() return themes end, A.themeId,
                     function(v) A.set("theme", v) end, after),
+                styleItem(after),
                 radioItem(T("Accent colour"), function() return accentOptions(false) end,
                     function() return (A.accentIds()) end,
                     function(v) A.set("accent", v) end, after),
@@ -537,6 +547,7 @@ function S.dashboardMenu(mctx, ctx_menu)
     local content = {
         { text = T("Pages and cards") .. ELLIPSIS, keep_menu_open = true,
           callback = function() A.dashEditPages(mctx, nil) end },
+        styleItem(function() S.reloadAll(mctx) end),
         radioItem(T("Margin around the page"),
             function() return { { "none", T("None") }, { "small", T("Small") }, { "medium", T("Medium") } } end,
             function()

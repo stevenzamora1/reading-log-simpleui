@@ -1070,11 +1070,14 @@ function H.repaint(ctx, o)
         if screen._refreshImmediate then pcall(screen._refreshImmediate, screen, true) end
         return
     end
-    if o.flash then
+    if o.flash or o.turn then
         local wrapper = screen._wrapper_pool and screen._wrapper_pool[mod_id]
         local region = wrapper and wrapper.dimen
         if region then
-            UIManager:setDirty(screen, function() return "flashui", region, true end)
+            -- a page turn: a quick ghost-clearing update, which KOReader turns
+            -- into a flash every "Full refresh rate" updates, like a book's pages
+            local kind = o.turn and "partial" or "flashui"
+            UIManager:setDirty(screen, function() return kind, region, true end)
         end
     end
 end

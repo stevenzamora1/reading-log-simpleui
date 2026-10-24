@@ -151,8 +151,13 @@ local function makeEnv(name, ctx, w, h, o)
     local stored_tone = A.get(name .. "_tone", nil)
     local tone_name = stored_tone or def.tone
     -- On its own on a Simple UI screen a card takes Simple UI's look (see
-    -- A.nativeTone); inside the Dashboard it keeps the theme's.
-    local native = (not o.nested) and A.standaloneNative()
+    -- A.nativeTone); inside the Dashboard it keeps the theme's. Over a Simple
+    -- UI wallpaper with this module's Background Opacity below Solid, a card
+    -- on its own is drawn as a solid card, framed in the theme like the
+    -- Dashboard's cards, so it stays readable whatever the wallpaper (Simple
+    -- UI's look would put its text and rings straight onto the picture).
+    local alone_see = (not o.nested) and ctx and ctx.mod_id and not ctx.menu and H.seeThrough(ctx.pfx, ctx.mod_id) or false
+    local native = (not o.nested) and A.standaloneNative() and not alone_see
     -- A tinted panel on a plain page would be a card in a card, so on their
     -- own the tinted cards start plain (unless picked by hand).
     if native and not stored_tone then
@@ -166,6 +171,9 @@ local function makeEnv(name, ctx, w, h, o)
         native = native,
         page = o.page,
         see = o.see or false,
+        -- the card sits straight on a wallpaper: its corners blend with it
+        behind = (o.see or alone_see) and true or false,
+        page_heading = o.page_heading or false,
         bleed = false,
         sample = false,
         refresh = ctx and ctx.refresh or nil,
@@ -201,9 +209,20 @@ local function tapRegion(def, ctx)
 end
 
 -- A card that is already on screen is about to be redrawn (a tap changed it,
--- or the dashboard turned a page). flash = the whole card changes.
-local function inkRefresh(ctx, flash)
-    H.repaint(ctx, { flash = flash })
+-- or the dashboard turned a page). flash = the whole card changes; turn = a
+-- Dashboard page turn.
+local function inkRefresh(ctx, flash, turn)
+    H.repaint(ctx, { flash = flash, turn = turn })
+end
+
+-- A new page (a tab, or another month): the data the new page needs is
+-- worked out before it is drawn, within a short time limit, so it shows up
+-- whole in one go instead of in two steps; and it is put on screen with a
+-- quick update rather than a flash (KOReader still flashes every so often,
+-- by its own "Full refresh rate", to clear ghosting).
+local function pageTurn(ctx)
+    D.hurry(0.35)
+    inkRefresh(ctx, false, true)
 end
 
 -- One flashing refresh of the whole screen, now. Clears whatever ghosting
@@ -221,6 +240,9 @@ function A.render(name, ctx)
     local def = P[name]
     local w, h = floor(ctx.width), floor(ctx.height)
     local c = buildPanel(name, makeEnv(name, ctx, w, h))
+    -- painted once and kept (see the paint cache in init.lua); not the
+    -- clocks, which are a new picture every minute
+    c.cache_me = not def.tick
     declareRegions(ctx, c)
     if def.tick then H.wantTick(ctx, { y = 0, h = c.h }) end
     return c
@@ -296,6 +318,8 @@ A.DASH_PAGES = {
       rows = { { "challenge", "forecast" }, { "trends" } } },
     { id = "library", label = T("Library"), heading = true, kicker = "library",
       rows = { { "library" }, { "pick", "authors" }, { "quote" } } },
+    { id = "calendar", label = T("Calendar"), heading = false, kicker = "month",
+      rows = { { "calendar" } } },
 }
 
 -- How tall a card wants to be, as a share of the page. A row takes the larger
@@ -308,15 +332,17 @@ A.DASH_WEIGHT = {
     year_time = 0.36, month_totals = 0.40, month_chart = 0.30, when_read = 0.36,
     challenge = 0.33, forecast = 0.33, trends = 0.62, control = 0.24, compare = 0.34,
     library = 0.27, authors = 0.37, pick = 0.37, quote = 0.25, timeline = 0.27,
+    calendar = 0.9, cover_week = 0.3, quote2 = 0.25, quote3 = 0.25, quote4 = 0.25,
 }
 -- The order cards are offered in when editing a page.
 A.DASH_CARDS = { "banner", "continue", "activity", "week_rings", "month_rings", "month_totals", "month_chart",
                  "when_read", "goal", "bookclub", "tbr", "genres", "year_covers", "week", "year_chart",
                  "year_time", "heatmap", "finished", "longest_year", "longest_month", "deadline",
                  "trends", "challenge", "forecast", "control", "compare",
-                 "library", "authors", "pick", "quote", "timeline" }
+                 "library", "authors", "pick", "quote", "timeline", "calendar", "cover_week",
+                 "quote2", "quote3", "quote4" }
 A.DASH_MAX_ROWS = 6
-A.DASH_MAX_PAGES = 7
+A.DASH_MAX_PAGES = 8
 
 -- Pages the reader added: { { id = "c1", label = "My page" }, ... } under
 -- dash_custom. Their rows are kept like any page's, under dash_rows_<id>.
@@ -478,7 +504,7 @@ local function buildDashboard(ctx, w, h)
         local bar_w = min(w, max(floor(w * 0.72), #tabs * floor(bar_h * 2.3)))
         local bx, by = ox + floor((w - bar_w) / 2), oy + h - bar_h
         local bw_ = max(2, floor(bar_h * 0.045 + 0.5))
-        c:frame(bx, by, bar_w, bar_h, bar_h / 2, bw_, page_fg, page_bg, page_bg)
+        c:frame(bx, by, bar_w, bar_h, bar_h / 2, bw_, page_fg, page_bg, see and A.BEHIND or page_bg)
         local inner = bar_w - bar_h * 0.5
         local cell = inner / #tabs
         local size = max(10, floor(bar_h * 0.36 * ts + 0.5))
@@ -556,7 +582,10 @@ local function buildDashboard(ctx, w, h)
         end
         local env = { w = w, h = head_h, ts = ts, see = see }
         local ok, hc = pcall(P.heading, env, kicker, pageLabel(page), nav)
-        if ok and hc then c:sub(hc, ox, oy + y, "heading|") end
+        if ok and hc then
+            hc.cache_me = true
+            c:sub(hc, ox, oy + y, "heading|")
+        end
         y = y + head_h + floor(gap * 0.6)
     end
 
@@ -571,8 +600,9 @@ local function buildDashboard(ctx, w, h)
         for ni, name in ipairs(names) do
             local x = (ni - 1) * (pw + gap)
             local width = (ni == #names) and (w - x) or pw
-            local env = makeEnv(name, ctx, width, rh, { nested = true, slot = 1, page = page_look, see = see })
+            local env = makeEnv(name, ctx, width, rh, { nested = true, slot = 1, page = page_look, see = see, page_heading = heading })
             local child = buildPanel(name, env)
+            child.cache_me = not P[name].tick
             c:sub(child, ox + x, oy + y, name .. "|")
             if P[name].tick then c.clock_y, c.clock_h = oy + y, rh end
             -- the rest of the panel: a plain tap on it
@@ -654,7 +684,7 @@ end
 function Dashboard.on_tap(ctx)
     local kind, a, b = dashSplit(dashRegion(ctx))
     if kind == "nav" then
-        if stepMonth(a) then inkRefresh(ctx, true) end
+        if stepMonth(a) then pageTurn(ctx) end
         return
     end
     if kind == "tab" then
@@ -662,7 +692,7 @@ function Dashboard.on_tap(ctx)
         if not tab then return end
         if A.state.dash_page ~= tab.page then
             A.state.dash_page = tab.page
-            inkRefresh(ctx, true)
+            pageTurn(ctx)
         end
     elseif kind == "panel" then
         local def = P[a]
@@ -906,6 +936,7 @@ function Dashboard.show_settings(ctx)
                 api.close()
                 editPages(ctx, show)
             end } }
+            for _, r in ipairs(S.styleRows(api, ctx)) do rows[#rows + 1] = r end
             rows[#rows + 1] = S.header(T("Margin around the page"))
             rows[#rows + 1] = S.radio(api, { { "none", T("None") }, { "small", T("Small") }, { "medium", T("Medium") } },
                 MARGINS[A.get("dash_margin", "small")] and A.get("dash_margin", "small") or "small",
@@ -975,15 +1006,15 @@ A.DASH_MARGINS = MARGINS
 A.MODULE_ORDER = {
     "dashboard", "mini",
     -- Today
-    "banner", "continue", "activity", "week_rings", "week", "goal", "bookclub", "timeline", "control",
+    "banner", "continue", "activity", "week_rings", "week", "cover_week", "goal", "bookclub", "timeline", "control",
     -- Monthly
-    "month_rings", "month_totals", "month_chart", "when_read", "longest_month", "challenge",
+    "calendar", "month_rings", "month_totals", "month_chart", "when_read", "longest_month", "challenge",
     -- Yearly
     "year_time", "longest_year", "year_chart", "year_covers", "genres", "heatmap", "finished",
     -- Trends
     "trends", "compare", "forecast",
     -- Library
-    "library", "authors", "pick", "quote",
+    "library", "authors", "pick", "quote", "quote2", "quote3", "quote4",
     -- Shelves and goals
     "tbr", "deadline",
 }
@@ -1185,6 +1216,11 @@ local function dashboardModule()
         w = max(80, floor(w))
         local h = dashHeight(sctx, id)
         local ctx = cardCtx(id, sctx, w, h)
+        -- shown again after a while (its screen opened): draw the page whole
+        -- at once rather than with gaps first (see D.hurry)
+        local now = os.time()
+        if now - (A.state.dash_built_at or 0) > 30 then D.hurry(0.35) end
+        A.state.dash_built_at = now
         local ok, c = draw(id, function() return Dashboard.render(ctx) end)
         if not ok or not c then c = errorCard(A._("Dashboard"), w, h, c) end
         return tappable(c, ctx, function() Dashboard.on_tap(ctx) end)

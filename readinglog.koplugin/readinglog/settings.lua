@@ -43,6 +43,17 @@ local function reloadAll(ctx)
 end
 S.reloadAll = reloadAll
 
+-- A look shared by several cards (all the quote cards, both cover
+-- calendars, every chart): one setting, and every card redraws.
+local function sharedLook(api, ctx, title, key, options)
+    return S.header(title), S.radio(api, options, A.get(key, options[1][1]),
+        function(v) A.set(key, v ~= options[1][1] and v or nil); reloadAll(ctx) end)
+end
+local function chartLook(api, ctx)
+    return sharedLook(api, ctx, T("Charts, on every card"), "chart_look",
+        { { "plain", T("Plain") }, { "cozy", T("Book spines and hearts") } })
+end
+
 -- S.open(ctx, title, rows_fn, all): rows_fn(api) returns ButtonDialog rows.
 --   api.again()   show this dialog again (nothing changed)
 --   api.changed() redraw the card (every card when `all`), then show this dialog again
@@ -276,19 +287,94 @@ ROWS.continue = function(env, api)
         S.header(T("How many books to cycle through")),
         S.radio(api, { { 3, "3" }, { 5, "5" }, { 8, "8" } }, tonumber(env.cfg("count", 5)) or 5,
             function(v) env.setcfg("count", v) end),
+        S.header(T("Look")),
+        S.radio(api, { { "classic", T("Classic") }, { "scrapbook", T("Scrapbook") } }, env.cfg("look", "classic"),
+            function(v) env.setcfg("look", v ~= "classic" and v or nil) end),
     }
 end
 
-ROWS.activity = function(env, api)
+ROWS.timeline = function(env, api)
     return {
+        S.header(T("Look")),
+        S.radio(api, { { "plain", T("Plain") }, { "sky", T("Sky") } }, env.cfg("look", "plain"),
+            function(v) env.setcfg("look", v ~= "plain" and v or nil) end),
+    }
+end
+
+ROWS.trends = function(env, api)
+    return {
+        S.header(T("Look")),
+        S.radio(api, { { "plain", T("Plain") }, { "notes", T("Sticky notes") } }, env.cfg("look", "plain"),
+            function(v) env.setcfg("look", v ~= "plain" and v or nil) end),
+    }
+end
+
+-- Default or Cute: every cute look at once. Each card can still be changed
+-- on its own afterwards.
+local CUTE = { { "ring_shape", "hearts" }, { "challenge_style", "flower" }, { "bookclub_look", "garden" },
+    { "goal_look", "jar" }, { "quote_look", "paper" }, { "calendar_look", "polaroid" },
+    { "continue_look", "scrapbook" }, { "trends_look", "notes" }, { "chart_look", "cozy" },
+    { "timeline_look", "sky" }, { "forecast_look", "calendar" } }
+A.CUTE = CUTE
+function A.styleNow()
+    local on = 0
+    for _, kv in ipairs(CUTE) do if A.get(kv[1]) == kv[2] then on = on + 1 end end
+    if on == #CUTE then return "cute" elseif on == 0 then return "default" end
+    return "mixed"
+end
+function A.setStyle(v)
+    for _, kv in ipairs(CUTE) do A.set(kv[1], v == "cute" and kv[2] or nil) end
+end
+function S.styleRows(api, ctx)
+    local now = A.styleNow()
+    return {
+        S.header(T("Style")),
+        S.radio(api, { { "default", T("Default") }, { "cute", T("Cute") } }, now,
+            function(v) A.setStyle(v); reloadAll(ctx) end),
+        S.header(now == "mixed" and T("Some cards have a look of their own.")
+            or T("Cute turns on every card's cute look at once.")),
+    }
+end
+
+-- Rings or hearts: one choice for every rings card (Activity, Week and Month
+-- rings and the Mini dashboard), so changing it redraws them all.
+function S.shapeRows(api, ctx)
+    local function all_(fn) return function(v) fn(v); reloadAll(ctx) end end
+    local all = api
+    local rows = {
+        S.header(T("Shape, for every rings card")),
+        S.radio(all, { { "rings", T("Rings") }, { "hearts", T("Hearts") } }, A.get("ring_shape", "rings"),
+            all_(function(v) A.set("ring_shape", v ~= "rings" and v or nil) end)),
+    }
+    if A.hearts() then
+        rows[#rows + 1] = S.header(T("Heart colours"))
+        rows[#rows + 1] = S.radio(all, { { "pink", T("Pink") }, { "card", T("Card colours") } }, A.get("heart_colors", "pink"),
+            all_(function(v) A.set("heart_colors", v ~= "pink" and v or nil) end))
+        rows[#rows + 1] = S.header(T("A broken heart when you miss"))
+        rows[#rows + 1] = S.radio(all, { { "any", T("Either goal") }, { "both", T("Both goals") } }, A.get("heart_broken", "any"),
+            all_(function(v) A.set("heart_broken", v ~= "any" and v or nil) end))
+    end
+    return rows
+end
+
+local function addAll(rows, more)
+    for _, r in ipairs(more) do rows[#rows + 1] = r end
+    return rows
+end
+
+ROWS.activity = function(env, api, ctx)
+    local rows = {
         S.input(api, T("Pages a day"), env.cfg("page_goal", 30), function(v) env.setcfg("page_goal", v) end,
             { number = true, min = 1, max = 2000 }),
         S.input(api, T("Minutes a day"), D.dailyMinutesGoal(), function(v) D.setDailyMinutesGoal(v) end,
             { number = true, min = 1, max = 720, description = T("Shared with Simple UI's Reading goals (daily goal).") }),
-        S.header(T("Streak ring fills at")),
-        S.radio(api, { { 7, T("7 days") }, { 14, T("14 days") }, { 30, T("30 days") } },
-            tonumber(env.cfg("streak_goal", 7)) or 7, function(v) env.setcfg("streak_goal", v) end),
     }
+    if not A.hearts() then
+        rows[#rows + 1] = S.header(T("Streak ring fills at"))
+        rows[#rows + 1] = S.radio(api, { { 7, T("7 days") }, { 14, T("14 days") }, { 30, T("30 days") } },
+            tonumber(env.cfg("streak_goal", 7)) or 7, function(v) env.setcfg("streak_goal", v) end)
+    end
+    return addAll(rows, S.shapeRows(api, ctx))
 end
 
 ROWS.goal = function(env, api)
@@ -296,6 +382,9 @@ ROWS.goal = function(env, api)
     local rows = {
         S.input(api, T("Books this year"), target, function(v) D.setYearGoal(v) end,
             { number = true, min = 1, max = 365, description = T("Shared with Simple UI's Reading goals (annual goal).") }),
+        S.header(T("Look")),
+        S.radio(api, { { "number", T("Number") }, { "jar", T("Jar of hearts") } }, env.cfg("look", "number"),
+            function(v) env.setcfg("look", v ~= "number" and v or nil) end),
     }
     if A.host.ownOtherBooks() then
         rows[#rows + 1] = S.input(api, T("Read outside KOReader"), other, function(v) D.setOtherBooks(v) end,
@@ -365,6 +454,9 @@ ROWS.challenge = function(env, api)
         end } }
     end
     rows[#rows + 1] = S.header(T("Auto takes turns month by month and aims a little above your last three months."))
+    rows[#rows + 1] = S.header(T("Look"))
+    rows[#rows + 1] = S.radio(api, { { "ring", T("Ring") }, { "flower", T("Flower") } }, env.cfg("style", "ring"),
+        function(v) env.setcfg("style", v ~= "ring" and v or nil) end)
     return rows
 end
 
@@ -373,6 +465,9 @@ ROWS.forecast = function(env, api)
         S.header(T("Books listed")),
         S.radio(api, { { 1, "1" }, { 2, "2" }, { 3, "3" } }, tonumber(env.cfg("count", 3)) or 3,
             function(v) env.setcfg("count", v) end),
+        S.header(T("Look")),
+        S.radio(api, { { "plain", T("Plain") }, { "calendar", T("Desk calendar") } }, env.cfg("look", "plain"),
+            function(v) env.setcfg("look", v ~= "plain" and v or nil) end),
     }
 end
 
@@ -503,6 +598,47 @@ function S.controlButton(ctx, i, back)
                 return list
             end)
         end } }
+        -- a picture of your own instead of the icon: any PNG or JPEG on the device
+        local pic_name = e.image and (e.image:match("([^/]+)$") or e.image)
+        rows[#rows + 1] = { { text = (pic_name and (T("Picture: ") .. pic_name) or T("Use a picture")) .. ELLIPSIS,
+            callback = function()
+                api.close()
+                local UIManager = require("ui/uimanager")
+                local okp, PathChooser = pcall(require, "ui/widget/pathchooser")
+                if not okp then return S.controlButton(ctx, i, back) end
+                local start = A.get("control_picture_dir", nil)
+                if not start then
+                    local okd, DataStorage = pcall(require, "datastorage")
+                    start = okd and DataStorage:getDataDir() or "/"
+                end
+                UIManager:show(PathChooser:new{
+                    title = T("Pick a PNG or JPEG"),
+                    select_directory = false, select_file = true, show_files = true,
+                    path = start,
+                    file_filter = function(name)
+                        local n = name:lower()
+                        return n:match("%.png$") ~= nil or n:match("%.jpe?g$") ~= nil
+                    end,
+                    onConfirm = function(path)
+                        local copy = {}
+                        for k, val in pairs(current()) do copy[k] = val end
+                        copy.image = path
+                        A.setControlButton(i, copy)
+                        A.set("control_picture_dir", path:match("^(.*)/[^/]*$"))
+                        S.reload(ctx)
+                        S.controlButton(ctx, i, back)
+                    end,
+                })
+            end } }
+        if e.image then
+            rows[#rows + 1] = { { text = T("Use the icon instead"), callback = function()
+                local copy = {}
+                for k, val in pairs(current()) do copy[k] = val end
+                copy.image = nil
+                A.setControlButton(i, copy)
+                api.changed()
+            end } }
+        end
         rows[#rows + 1] = S.input(api, T("Name"), e.label or "", function(v) changed({ label = v }) end)
         rows[#rows + 1] = { { text = T("Put this button back as it came"), callback = function()
             A.setControlButton(i, nil)
@@ -562,6 +698,7 @@ ROWS.mini = function(env, api, ctx)
     control._sui = { kind = "submenu", label = T("Control centre buttons"),
         rows_fn = function() return ROWS.control(A.makeEnv("control", ctx, 0, 0), api, ctx) end }
     rows[#rows + 1] = control
+    addAll(rows, S.shapeRows(api, ctx))
     rows[#rows + 1] = S.header(T("Rings goals, the challenge and the buttons are shared with their own cards."))
     return rows
 end
@@ -620,15 +757,51 @@ ROWS.pick = function(env, api, ctx)
     }
 end
 
-ROWS.quote = function(env, api)
+local function quoteLook(api, ctx)
+    return sharedLook(api, ctx, T("Look, for every quote card"), "quote_look",
+        { { "plain", T("Plain") }, { "paper", T("Notebook paper") } })
+end
+local function calendarLook(api, ctx)
+    return sharedLook(api, ctx, T("Look, for both cover calendars"), "calendar_look",
+        { { "plain", T("Plain") }, { "polaroid", T("Polaroids") } })
+end
+
+ROWS.quote = function(env, api, ctx)
+    local h1, r1 = quoteLook(api, ctx)
     return {
         S.header(T("A new highlight from your books each day.")),
         { { text = T("Show another quote"), callback = function()
             D.nextQuote()
             api.changed()
         end } },
+        h1, r1,
     }
 end
+
+for _, name in ipairs{ "quote2", "quote3", "quote4" } do
+    ROWS[name] = function(_, api, ctx)
+        local h1, r1 = quoteLook(api, ctx)
+        return {
+            S.header(T("A pick of its own, never the same highlight as your other quote cards.")),
+            { { text = T("Show another quote"), callback = function()
+                A.quoteAgain(name)
+                api.changed()
+            end } },
+            h1, r1,
+        }
+    end
+end
+
+ROWS.calendar = function(env, api, ctx)
+    local h1, r1 = calendarLook(api, ctx)
+    return {
+        S.header(T("Time on each day")),
+        S.radio(api, { { true, T("Shown") }, { false, T("Hidden") } }, env.cfg("time", true) ~= false,
+            function(v) if v then env.setcfg("time", nil) else env.setcfg("time", false) end end),
+        h1, r1,
+    }
+end
+ROWS.cover_week = ROWS.calendar
 
 ROWS.week = function(env, api)
     return {
@@ -732,16 +905,19 @@ ROWS.bookclub = function(env, api, ctx)
         end } },
         S.input(api, T("Title"), env.cfg("title", T("Book club")), function(v) env.setcfg("title", v) end,
             { hint = T("e.g. Book club"), empty_label = T("Book club") }),
+        S.header(T("Look")),
+        S.radio(api, { { "classic", T("Classic") }, { "garden", T("Garden") } }, env.cfg("look", "classic"),
+            function(v) env.setcfg("look", v ~= "classic" and v or nil) end),
     }
 end
 
-ROWS.week_rings = function(env, api)
-    return {
+ROWS.week_rings = function(env, api, ctx)
+    return addAll({
         S.input(api, T("Pages a day"), A.get("activity_page_goal", 30), function(v) A.set("activity_page_goal", v) end,
             { number = true, min = 1, max = 2000, description = T("Shared with the Activity rings card.") }),
         S.input(api, T("Minutes a day"), D.dailyMinutesGoal(), function(v) D.setDailyMinutesGoal(v) end,
             { number = true, min = 1, max = 720, description = T("Shared with Simple UI's Reading goals (daily goal).") }),
-    }
+    }, S.shapeRows(api, ctx))
 end
 
 ROWS.month_rings = ROWS.week_rings
@@ -821,6 +997,8 @@ function S.look(ctx, back)
         local rows = {
             S.header(T("Theme")),
             S.radio(api, themes, A.themeId(), function(v) A.set("theme", v) end),
+            S.header(T("Style")),
+            S.styleRows(api, ctx)[2],
             -- Two accent colours, used for labels, rings, bars and buttons.
             -- A card's own "Card colour" setting decides which of the two leads.
             { { text = T("Accent colour: ") .. A.ACCENTS[a1].label, callback = function()
@@ -1008,6 +1186,18 @@ function S.card(name, ctx, env_fn, back)
         end)
     end
     show()
+end
+
+-- the chart look, on every card with a chart
+for _, name in ipairs{ "year_time", "month_chart", "when_read", "week", "compare", "year_chart", "challenge" } do
+    local own = ROWS[name]
+    ROWS[name] = function(env, api, ctx)
+        local rows = own and own(env, api, ctx) or {}
+        local h1, r1 = chartLook(api, ctx)
+        rows[#rows + 1] = h1
+        rows[#rows + 1] = r1
+        return rows
+    end
 end
 
 -- (menu builders follow: settings_menu)
